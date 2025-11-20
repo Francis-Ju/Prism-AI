@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Smartphone, Tablet, Monitor, X, Download, Loader2 } from 'lucide-react';
+import { Smartphone, Tablet, Monitor, X, Download, Loader2, Edit2 } from 'lucide-react';
 import { DeviceMode, GeneratedContentState } from '../types';
 
 interface PreviewAreaProps {
@@ -43,31 +43,79 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     element.click();
   };
 
-  // Handle content changes from contentEditable
-  const handleInput = () => {
-    if (containerRef.current && contentState.isEditable) {
-       const updatedHtml = containerRef.current.innerHTML;
-       // We debounce or just update state on blur usually, but here let's update periodically or on blur to avoid re-rendering loop if we bind value directly.
-       // Actually, with dangerouslySetInnerHTML, React won't reconcile diffs inside easily. 
-       // We use a ref to read, but updating state triggers re-render which resets cursor.
-       // So we only sync back on specific actions or blur.
-    }
-  };
-
   const handleBlur = () => {
     if (containerRef.current && contentState.isEditable) {
       onUpdateState({ html: containerRef.current.innerHTML });
     }
   }
 
-  // Effect to toggle contentEditable on the children
+  // Effect to toggle contentEditable and Image Interactions
   useEffect(() => {
-    if (containerRef.current) {
-       // We apply contentEditable to the container, which allows editing children.
-       // Tailwind CDN needs to be present in the iframe context if we used iframe, but we are using a div here.
-       // The styles are applied globally from index.html
+    if (!containerRef.current) return;
+    
+    const container = containerRef.current;
+    
+    // Add custom styles for edit mode if active
+    const styleId = 'prism-edit-styles';
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement;
+    if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        document.head.appendChild(styleEl);
     }
-  }, [contentState.isEditable]);
+
+    if (contentState.isEditable) {
+        styleEl.innerHTML = `
+            [data-prism-container] img {
+                transition: all 0.2s ease;
+                cursor: pointer !important;
+                position: relative;
+            }
+            [data-prism-container] img:hover {
+                outline: 3px solid #a78bfa;
+                filter: brightness(0.9);
+            }
+            [data-prism-container] img::after {
+                content: "EDIT";
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: black;
+                color: white;
+                padding: 4px;
+                font-size: 10px;
+                pointer-events: none;
+            }
+        `;
+    } else {
+        styleEl.innerHTML = '';
+    }
+
+    // Image click handler for replacement
+    const handleImageClick = (e: MouseEvent) => {
+        if (!contentState.isEditable) return;
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'IMG') {
+            e.preventDefault();
+            e.stopPropagation();
+            const img = target as HTMLImageElement;
+            const currentSrc = img.src;
+            const newSrc = window.prompt("Enter new image URL:", currentSrc);
+            
+            if (newSrc && newSrc !== currentSrc) {
+                img.src = newSrc;
+                onUpdateState({ html: container.innerHTML });
+            }
+        }
+    };
+
+    container.addEventListener('click', handleImageClick);
+    return () => {
+        container.removeEventListener('click', handleImageClick);
+    };
+
+  }, [contentState.isEditable, onUpdateState]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0c0c0e] border-l border-dark-800 shadow-2xl relative animate-fade-in min-w-0">
@@ -84,30 +132,53 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
           
           <div className="h-4 w-px bg-dark-700 mx-2"></div>
           
-          {/* Device Toggles */}
-          <div className="flex bg-dark-800 rounded-lg p-1 border border-dark-700/50">
+          {/* Device Toggles & Edit */}
+          <div className="flex bg-dark-800 rounded-lg p-1 border border-dark-700/50 items-center">
             <button 
               onClick={() => onDeviceModeChange(DeviceMode.DESKTOP)}
               className={`p-1.5 rounded-md transition-all ${deviceMode === DeviceMode.DESKTOP ? 'bg-dark-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+              title="Desktop View"
             >
               <Monitor size={14} />
             </button>
             <button 
               onClick={() => onDeviceModeChange(DeviceMode.TABLET)}
               className={`p-1.5 rounded-md transition-all ${deviceMode === DeviceMode.TABLET ? 'bg-dark-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+              title="Tablet View"
             >
               <Tablet size={14} />
             </button>
             <button 
               onClick={() => onDeviceModeChange(DeviceMode.MOBILE)}
               className={`p-1.5 rounded-md transition-all ${deviceMode === DeviceMode.MOBILE ? 'bg-dark-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+              title="Mobile View"
             >
               <Smartphone size={14} />
             </button>
+            
+            <div className="w-px h-4 bg-dark-700 mx-1"></div>
+            
+            <button 
+               onClick={() => onUpdateState({ isEditable: !contentState.isEditable })}
+               className={`p-1.5 rounded-md transition-all ${
+                 contentState.isEditable 
+                   ? 'bg-yellow-500 text-black shadow-sm' 
+                   : 'text-gray-500 hover:text-white hover:bg-dark-700'
+               }`}
+               title={contentState.isEditable ? "Exit Edit Mode" : "Edit Text & Images"}
+             >
+               <Edit2 size={14} />
+             </button>
           </div>
         </div>
 
         <div className="flex items-center space-x-3">
+           {contentState.isEditable && (
+               <span className="text-xs text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded animate-pulse">
+                 Click text to type, click images to replace
+               </span>
+           )}
+
            <button 
              onClick={downloadHtml}
              className="flex items-center gap-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-brand-900/20"
@@ -131,12 +202,13 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
       {/* Canvas Area */}
       <div className="flex-1 overflow-auto relative p-4 md:p-8 flex justify-center bg-dots-pattern">
         <div 
-          className={`transition-all duration-500 ease-in-out bg-white shadow-2xl ${getContainerWidth()} w-full min-h-[800px] h-fit overflow-hidden ring-1 ring-dark-800 ${contentState.isEditable ? 'ring-2 ring-yellow-500/50 cursor-text' : ''}`}
+          className={`transition-all duration-500 ease-in-out bg-white shadow-2xl ${getContainerWidth()} w-full min-h-[800px] h-fit overflow-hidden ring-1 ring-dark-800 ${contentState.isEditable ? 'ring-2 ring-yellow-500/50' : ''}`}
           style={{ backgroundColor }}
         >
           {htmlContent ? (
              <div 
                 ref={containerRef}
+                data-prism-container="true"
                 contentEditable={contentState.isEditable}
                 suppressContentEditableWarning={true}
                 dangerouslySetInnerHTML={{ __html: htmlContent }} 

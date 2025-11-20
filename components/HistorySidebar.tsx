@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Plus, Clock, Trash2, LogOut } from 'lucide-react';
+import { MessageSquare, Plus, Clock, Trash2, LogOut, PanelLeftClose } from 'lucide-react';
 import { ChatSession, User } from '../types';
 
 interface HistorySidebarProps {
@@ -49,6 +49,15 @@ const HistorySidebar: React.FC<HistorySidebarProps> = ({
                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Pro Plan</span>
             </div>
           </div>
+          
+          {/* Collapse Button */}
+          <button 
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-white hover:bg-dark-800 rounded-lg transition-colors"
+            title="Collapse Sidebar"
+          >
+            <PanelLeftClose size={18} />
+          </button>
         </div>
 
         {/* New Chat Button */}

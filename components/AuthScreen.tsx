@@ -28,7 +28,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center shadow-2xl shadow-brand-500/30 mb-6">
              <Sparkles className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-5xl font-display font-bold text-white mb-2 tracking-tight">Prism AI</h1>
+          <h1 className="text-5xl font-display font-bold text-white mb-2 tracking-tight">Novartis Prism AI</h1>
           <p className="text-gray-400 text-lg text-center">Design Intelligence Interface</p>
         </div>
 

@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
 import ChatSidebar from './components/ChatSidebar';
 import PreviewArea from './components/PreviewArea';
-import PropertiesPanel from './components/PropertiesPanel';
 import AuthScreen from './components/AuthScreen';
 import HistorySidebar from './components/HistorySidebar';
 import TemplateLibrary from './components/TemplateLibrary';
 import { ChatMessage, MessageRole, DeviceMode, GeneratedContentState, User, ChatSession, Template, ModelType } from './types';
 import { generateAgentResponse } from './services/geminiService';
+import { DEFAULT_TEMPLATES } from './constants';
 
 // Helper to convert file to Base64 (for Images/PDFs)
 const fileToBase64 = (file: File): Promise<string> => {
@@ -75,9 +76,7 @@ const App: React.FC = () => {
       const parsed = JSON.parse(storedSessions);
       setSessions(parsed);
       if (parsed.length > 0) {
-        // Ensure we don't automatically select a session that resets state unexpectedly,
-        // but we do want a clean slate for "New Project" feel if desired.
-        // For now, start fresh.
+        // Start fresh by default to respect "New Project" feel
         startNewChat(false); 
       } else {
         startNewChat(false);
@@ -224,21 +223,76 @@ const App: React.FC = () => {
   };
 
   const handleSelectTemplate = (template: Template) => {
-    // Inject template instruction into chat as a system message or user prompt
-    const promptText = `I want to use the "${template.name}" template (${template.category}). 
+    // Load the template content directly into the editor state
+    const newArtifactState: GeneratedContentState = {
+      html: template.htmlContent,
+      backgroundColor: '#ffffff', 
+      fontFamily: 'sans-serif',
+      isEditable: false
+    };
+
+    setContentState(newArtifactState);
+    setShowArtifact(true);
+
+    // Update current session state without adding a chat message to keep the flow direct
+    // We pass the current messages (which haven't changed)
+    updateCurrentSession(messages, newArtifactState);
+  };
+
+  const handleLoadTemplateById = (templateId: string) => {
+    // Look up in default templates first
+    let template = DEFAULT_TEMPLATES.find(t => t.id === templateId);
     
-    Here is the structure I want you to base the design on (or inspire from):
-    ${template.htmlContent}
-    
-    Please generate a design using this structure but adapted to my needs.`;
-    
-    // Automatically send this as a user message to trigger generation
-    handleSendMessage(promptText);
+    // If not found in defaults, try looking in local storage (for custom templates)
+    if (!template) {
+      try {
+        const stored = localStorage.getItem('prism_templates');
+        if (stored) {
+          const customTemplates: Template[] = JSON.parse(stored);
+          template = customTemplates.find(t => t.id === templateId);
+        }
+      } catch (e) {
+        // ignore error
+      }
+    }
+
+    if (template) {
+      handleSelectTemplate(template);
+    } else {
+      console.warn(`Template with ID ${templateId} not found`);
+    }
   };
 
   // --- Message Handling ---
   const handleSendMessage = async (text: string, file?: File) => {
-    // 1. Update Local State
+    // 1. Prepare Attachment Data
+    let inlineData: string | undefined;
+    let mimeType: string | undefined;
+    let fullPrompt = text;
+
+    if (file) {
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf';
+      const isTextFile = file.type.startsWith('text/') || 
+                         file.name.match(/\.(json|md|txt|js|ts|tsx|jsx|css|html|csv|xml|py)$/i);
+
+      if (isImage || isPdf) {
+        inlineData = await fileToBase64(file);
+        mimeType = file.type;
+      } else if (isTextFile) {
+        try {
+          const fileContent = await fileToText(file);
+          fullPrompt = `${text}\n\n<AttachedFile name="${file.name}">\n${fileContent}\n</AttachedFile>`;
+        } catch (e) {
+           console.error("Failed to read text file", e);
+           fullPrompt += `\n[System: Failed to read content of attached file ${file.name}]`;
+        }
+      } else {
+         fullPrompt += `\n[System: User uploaded ${file.name}. Treat this as a file reference.]`;
+      }
+    }
+
+    // 1. Update Local State with Message
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       role: MessageRole.USER,
@@ -246,7 +300,7 @@ const App: React.FC = () => {
       attachments: file ? [{
         name: file.name,
         type: file.type,
-        data: '' 
+        data: inlineData || '' // Store data for history context
       }] : undefined
     };
 
@@ -257,38 +311,32 @@ const App: React.FC = () => {
     updateCurrentSession(updatedMessages);
 
     try {
-      let inlineData: string | undefined;
-      let mimeType: string | undefined;
-      let fullPrompt = text;
-
-      if (file) {
-        const isImage = file.type.startsWith('image/');
-        const isPdf = file.type === 'application/pdf';
-        const isTextFile = file.type.startsWith('text/') || 
-                           file.name.match(/\.(json|md|txt|js|ts|tsx|jsx|css|html|csv|xml|py)$/i);
-
-        if (isImage || isPdf) {
-          inlineData = await fileToBase64(file);
-          mimeType = file.type;
-        } else if (isTextFile) {
-          try {
-            const fileContent = await fileToText(file);
-            fullPrompt = `${text}\n\n<AttachedFile name="${file.name}">\n${fileContent}\n</AttachedFile>`;
-          } catch (e) {
-             console.error("Failed to read text file", e);
-             fullPrompt += `\n[System: Failed to read content of attached file ${file.name}]`;
-          }
-        } else {
-           fullPrompt += `\n[System: User uploaded ${file.name}. Treat this as a file reference.]`;
+      // Construct History correctly using stored base64 data for context
+      const historyForApi = updatedMessages.slice(0, -1).map(m => {
+        const parts: any[] = [];
+        if (m.attachments && m.attachments.length > 0) {
+          m.attachments.forEach(att => {
+            // Only re-send image/pdf data. Text files were already embedded in prompt text.
+            if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
+              parts.push({
+                inlineData: {
+                  mimeType: att.type,
+                  data: att.data
+                }
+              });
+            }
+          });
         }
-      }
-
-      const historyForApi = updatedMessages.map(m => ({
-        role: m.role === MessageRole.USER ? 'user' : 'model',
-        parts: [{ text: m.text }]
-      }));
+        parts.push({ text: m.text });
+        
+        return {
+          role: m.role === MessageRole.USER ? 'user' : 'model',
+          parts: parts
+        };
+      });
 
       // Call Gemini Service with selected Model
+      // Pass inlineData explicitly for the CURRENT turn if it exists
       const response = await generateAgentResponse(fullPrompt, historyForApi, inlineData, mimeType, selectedModel);
 
       const aiMessage: ChatMessage = {
@@ -296,7 +344,14 @@ const App: React.FC = () => {
         role: MessageRole.MODEL,
         text: response.chatResponse,
         thoughtProcess: response.thoughtProcess,
-        isThinking: false
+        isThinking: false,
+        // If HTML was generated, add a preview card to the message
+        artifactPreview: response.generatedHtml ? {
+            title: "Generated Artifact",
+            description: "Click to view design"
+        } : undefined,
+        // Map structured recommendation to message field
+        recommendedTemplates: response.recommendedTemplates
       };
 
       const finalMessages = [...updatedMessages, aiMessage];
@@ -359,45 +414,35 @@ const App: React.FC = () => {
            onSendMessage={handleSendMessage}
            isProcessing={isProcessing}
            isCentered={!showArtifact}
-           showHistoryToggle={!showHistory} 
+           showHistoryToggle={!showHistory}
            onToggleHistory={() => setShowHistory(true)}
            selectedModel={selectedModel}
            onSelectModel={setSelectedModel}
            onOpenTemplates={() => setShowTemplates(true)}
+           onLoadTemplate={handleLoadTemplateById}
+           onShowArtifact={() => setShowArtifact(true)}
         />
 
-        {/* Preview/Artifact Area */}
+        {/* Preview Area */}
         {showArtifact && (
-           <>
-             <PreviewArea 
-               htmlContent={contentState.html}
-               deviceMode={deviceMode}
-               onDeviceModeChange={setDeviceMode}
-               backgroundColor={contentState.backgroundColor}
-               contentState={contentState}
-               onUpdateState={(updates) => setContentState(prev => ({ ...prev, ...updates }))}
-               onClose={() => setShowArtifact(false)}
-             />
-             {/* Properties Panel is now right side or overlaid? 
-                 Standard IDE layout: Chat | Preview | Properties 
-                 Let's append Properties Panel to the right of Preview if shown.
-             */}
-             <div className="hidden lg:block h-full">
-               <PropertiesPanel 
-                 contentState={contentState}
-                 onUpdateState={(updates) => setContentState(prev => ({ ...prev, ...updates }))}
-               />
-             </div>
-           </>
+          <PreviewArea 
+            htmlContent={contentState.html}
+            deviceMode={deviceMode}
+            onDeviceModeChange={setDeviceMode}
+            backgroundColor={contentState.backgroundColor}
+            contentState={contentState}
+            onUpdateState={(updates) => setContentState(prev => ({ ...prev, ...updates }))}
+            onClose={() => setShowArtifact(false)}
+          />
         )}
       </div>
 
-      {/* Template Library Modal */}
       <TemplateLibrary 
         isOpen={showTemplates}
         onClose={() => setShowTemplates(false)}
         onSelectTemplate={handleSelectTemplate}
       />
+      
     </div>
   );
 };

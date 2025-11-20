@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Prism AI</title>
+    <title>Novartis Prism AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -81,6 +81,10 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
       }
+      .bg-dots-pattern {
+        background-image: radial-gradient(rgba(63, 63, 70, 0.4) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
     </style>
   <script type="importmap">
 {
@@ -89,7 +93,8 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "html2canvas": "https://esm.sh/html2canvas@1.4.1"
   }
 }
 </script>

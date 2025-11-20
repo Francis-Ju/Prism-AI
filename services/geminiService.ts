@@ -1,4 +1,6 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { DEFAULT_TEMPLATES } from "../constants";
 
 // Initialize the client
 // Note: The API key must be available in process.env.API_KEY
@@ -20,6 +22,19 @@ const contentGenerationSchema: Schema = {
       type: Type.STRING,
       description: "The full, valid HTML string for the long graphic/landing page. Use Tailwind CSS classes for styling. Do not include <html> or <body> tags, just the inner content structure. Ensure it looks modern and premium.",
     },
+    recommendedTemplates: {
+      type: Type.ARRAY,
+      description: "A list of template IDs from the provided library that would be suitable starting points for the user's request.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          name: { type: Type.STRING },
+          description: { type: Type.STRING, description: "A brief reason why this template is recommended." }
+        },
+        required: ["id", "name", "description"]
+      }
+    }
   },
   required: ["thoughtProcess", "chatResponse"],
 };
@@ -46,6 +61,14 @@ export const generateAgentResponse = async (
     
     currentParts.push({ text: prompt });
 
+    // Prepare template info for context
+    const templateContext = DEFAULT_TEMPLATES.map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      category: t.category
+    }));
+
     const response = await ai.models.generateContent({
       model: modelName,
       contents: [
@@ -60,14 +83,17 @@ export const generateAgentResponse = async (
         
         Your personality is sophisticated, creative, and precise. You turn abstract ideas into visual reality.
         
+        AVAILABLE TEMPLATES:
+        ${JSON.stringify(templateContext)}
+
         1. **Analysis**: When a user provides a document (PDF/Image/Text), you MUST first analyze it in your 'thoughtProcess'. 
            - Identify the main topic (e.g., Pharmaceutical product, Financial report, Event flyer).
            - Extract key statistics, dates, or features.
            - Determine the sentiment and appropriate visual tone.
         
-        2. **Guidance**: Guide the user to select a visual style (e.g., "Midnight Premium", "Swiss Minimalist", "Neon Cyberpunk").
+        2. **Recommendation**: If the user's request aligns with one of our available templates, recommend it in the 'recommendedTemplates' array. This helps the user get started quickly.
         
-        3. **Generation**: When asked to generate the visual content, output highly polished HTML using Tailwind CSS utility classes. 
+        3. **Generation**: When asked to generate the visual content *directly* (or if no template fits), output highly polished HTML using Tailwind CSS utility classes in 'generatedHtml'. 
            - The HTML should be responsive and beautiful.
            - Use placeholder images from https://picsum.photos/600/400 (or other dimensions) where appropriate.
            - Use modern design principles (whitespace, typography, contrast).
@@ -77,7 +103,8 @@ export const generateAgentResponse = async (
         You must respond in JSON format adhering to the schema provided.
         - 'thoughtProcess': Your internal reasoning and DOCUMENT ANALYSIS.
         - 'chatResponse': What you say to the user.
-        - 'generatedHtml': The HTML content for the preview pane (only if requested).
+        - 'generatedHtml': The HTML content for the preview pane (optional).
+        - 'recommendedTemplates': List of suitable templates (optional).
         `,
         responseMimeType: "application/json",
         responseSchema: contentGenerationSchema,

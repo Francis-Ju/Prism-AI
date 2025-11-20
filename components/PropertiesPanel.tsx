@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings, ImageIcon, Type, Edit3, CheckSquare, XSquare } from 'lucide-react';
+import { Settings, ImageIcon } from 'lucide-react';
 import { GeneratedContentState } from '../types';
 
 interface PropertiesPanelProps {
@@ -9,7 +9,7 @@ interface PropertiesPanelProps {
 
 interface ExtractedImage {
   src: string;
-  index: number; // position in array
+  index: number; 
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ contentState, onUpdateState }) => {
@@ -27,13 +27,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ contentState, onUpdat
         found.push({ src: match[1], index: i });
         i++;
       }
-      // De-duplicate strictly for UI cleanliness if needed, but keeping indices is important for replacement
       setImages(found);
     }
   }, [contentState.html]);
 
-  const handleImageChange = (index: number, oldSrc: string, newSrc: string) => {
+  const handleImageChange = (oldSrc: string, newSrc: string) => {
+    if (!oldSrc) return;
     // Replace all occurrences of the old source with the new source
+    // split().join() is a simple and effective way to replace all instances
     const updatedHtml = contentState.html.split(oldSrc).join(newSrc);
     onUpdateState({ html: updatedHtml });
   };
@@ -49,27 +50,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ contentState, onUpdat
 
        <div className="flex-1 overflow-y-auto p-4 space-y-8">
           
-          {/* Text Editing Toggle */}
-          <section>
-             <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-gray-400 text-sm font-medium">
-                  <Type size={14} />
-                  <span>Text Content</span>
-                </div>
-             </div>
-             
-             <button 
-               onClick={() => onUpdateState({ isEditable: !contentState.isEditable })}
-               className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 transition-all ${contentState.isEditable ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' : 'bg-dark-700 text-gray-300 border border-dark-600 hover:bg-dark-600'}`}
-             >
-               {contentState.isEditable ? <CheckSquare size={16} /> : <Edit3 size={16} />}
-               <span className="font-medium">{contentState.isEditable ? 'Finish Editing' : 'Edit Text Directly'}</span>
-             </button>
-             <p className="mt-2 text-xs text-gray-500">
-               {contentState.isEditable ? 'Click anywhere on the preview to type.' : 'Enable to click and type directly on the design.'}
-             </p>
-          </section>
-
           {/* Image Manager */}
           <section>
              <div className="flex items-center gap-2 text-gray-400 mb-3 text-sm font-medium">
@@ -95,7 +75,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ contentState, onUpdat
                          className="w-full bg-dark-950 border border-dark-700 rounded px-2 py-1 text-xs text-white focus:border-brand-500 focus:outline-none"
                          onKeyDown={(e) => {
                            if (e.key === 'Enter') {
-                             handleImageChange(idx, img.src, e.currentTarget.value);
+                             handleImageChange(img.src, e.currentTarget.value);
                              e.currentTarget.value = '';
                            }
                          }}

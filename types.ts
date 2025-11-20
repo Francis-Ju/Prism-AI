@@ -1,3 +1,4 @@
+
 export enum DeviceMode {
   MOBILE = 'mobile',
   TABLET = 'tablet',
@@ -7,6 +8,12 @@ export enum DeviceMode {
 export enum MessageRole {
   USER = 'user',
   MODEL = 'model'
+}
+
+export interface RecommendedTemplate {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export interface ChatMessage {
@@ -20,6 +27,11 @@ export interface ChatMessage {
     data: string; // Base64
   }[];
   isThinking?: boolean;
+  artifactPreview?: {
+    title: string;
+    description: string;
+  };
+  recommendedTemplates?: RecommendedTemplate[];
 }
 
 export interface GeneratedContentState {
