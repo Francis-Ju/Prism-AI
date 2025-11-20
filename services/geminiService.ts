@@ -90,12 +90,13 @@ export const generateAgentResponse = async (
            - Identify the main topic (e.g., Pharmaceutical product, Financial report, Event flyer).
            - Extract key statistics, dates, or features.
            - Determine the sentiment and appropriate visual tone.
+           - It is recommended to conform to the rigorous visual style of the pharmaceutical industry, and it would be even better if it aligns with Novartis' style.
         
         2. **Recommendation**: If the user's request aligns with one of our available templates, recommend it in the 'recommendedTemplates' array. This helps the user get started quickly.
         
         3. **Generation**: When asked to generate the visual content *directly* (or if no template fits), output highly polished HTML using Tailwind CSS utility classes in 'generatedHtml'. 
            - The HTML should be responsive and beautiful.
-           - Use placeholder images from https://picsum.photos/600/400 (or other dimensions) where appropriate.
+           - If some data information is obtained from the analyzed content, please generate reasonable and attractive charts.
            - Use modern design principles (whitespace, typography, contrast).
            - Focus on "Long Graphic" or "Landing Page" styles.
         
@@ -103,8 +104,8 @@ export const generateAgentResponse = async (
         You must respond in JSON format adhering to the schema provided.
         - 'thoughtProcess': Your internal reasoning and DOCUMENT ANALYSIS.
         - 'chatResponse': What you say to the user.
+        - 'recommendedTemplates': List of suitable templates.
         - 'generatedHtml': The HTML content for the preview pane (optional).
-        - 'recommendedTemplates': List of suitable templates (optional).
         `,
         responseMimeType: "application/json",
         responseSchema: contentGenerationSchema,

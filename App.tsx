@@ -223,7 +223,7 @@ const App: React.FC = () => {
   };
 
   const handleSelectTemplate = (template: Template) => {
-    // Load the template content directly into the editor state
+    // Load the template content directly into the editor state (for viewing/editing)
     const newArtifactState: GeneratedContentState = {
       html: template.htmlContent,
       backgroundColor: '#ffffff', 
@@ -234,16 +234,13 @@ const App: React.FC = () => {
     setContentState(newArtifactState);
     setShowArtifact(true);
 
-    // Update current session state without adding a chat message to keep the flow direct
-    // We pass the current messages (which haven't changed)
+    // Update current session state without adding a chat message
     updateCurrentSession(messages, newArtifactState);
   };
 
-  const handleLoadTemplateById = (templateId: string) => {
-    // Look up in default templates first
+  const handleApplyTemplate = async (templateId: string) => {
+    // Find template by ID (check defaults then local storage)
     let template = DEFAULT_TEMPLATES.find(t => t.id === templateId);
-    
-    // If not found in defaults, try looking in local storage (for custom templates)
     if (!template) {
       try {
         const stored = localStorage.getItem('prism_templates');
@@ -257,7 +254,14 @@ const App: React.FC = () => {
     }
 
     if (template) {
-      handleSelectTemplate(template);
+      // Trigger a chat message to generate content using this template
+      // We attach the template HTML as a file context so the model knows exactly what structure to use
+      const file = new File([template.htmlContent], `${template.name}.html`, { type: 'text/html' });
+      
+      await handleSendMessage(
+        `Apply the "${template.name}" template style to the content we are working on. Use the structure provided in the attached file.`,
+        file
+      );
     } else {
       console.warn(`Template with ID ${templateId} not found`);
     }
@@ -274,7 +278,7 @@ const App: React.FC = () => {
       const isImage = file.type.startsWith('image/');
       const isPdf = file.type === 'application/pdf';
       const isTextFile = file.type.startsWith('text/') || 
-                         file.name.match(/\.(json|md|txt|js|ts|tsx|jsx|css|html|csv|xml|py)$/i);
+                         file.name.match(/\.(json|md|txt|js|ts|tsx|jsx|css|html|htm|csv|xml|py)$/i);
 
       if (isImage || isPdf) {
         inlineData = await fileToBase64(file);
@@ -419,7 +423,7 @@ const App: React.FC = () => {
            selectedModel={selectedModel}
            onSelectModel={setSelectedModel}
            onOpenTemplates={() => setShowTemplates(true)}
-           onLoadTemplate={handleLoadTemplateById}
+           onApplyTemplate={handleApplyTemplate}
            onShowArtifact={() => setShowArtifact(true)}
         />
 

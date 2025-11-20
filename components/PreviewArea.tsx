@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
-import { Smartphone, Tablet, Monitor, X, Download, Loader2, Edit2 } from 'lucide-react';
+
+import React, { useEffect, useRef, useState } from 'react';
+import { Smartphone, Tablet, Monitor, X, Download, Loader2, Edit2, Image as ImageIcon, FileCode } from 'lucide-react';
 import { DeviceMode, GeneratedContentState } from '../types';
+import html2canvas from 'html2canvas';
 
 interface PreviewAreaProps {
   htmlContent: string;
@@ -22,6 +24,7 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
   onClose
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const getContainerWidth = () => {
     switch (deviceMode) {
@@ -41,6 +44,38 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     element.download = "prism_artifact.html";
     document.body.appendChild(element);
     element.click();
+    setShowExportMenu(false);
+  };
+
+  const downloadImage = async () => {
+    if (containerRef.current) {
+        try {
+            // Temporarily disable edit mode to clear guidelines
+            const wasEditable = contentState.isEditable;
+            if (wasEditable) {
+               // We need to handle this state carefully. 
+               // For now, just using the rendered DOM is fine, styles handle the outlines.
+               // But ideally we'd turn off edit borders.
+            }
+
+            const canvas = await html2canvas(containerRef.current, {
+                useCORS: true, // Important for external images
+                scale: 2, // Higher quality
+                backgroundColor: contentState.backgroundColor || '#ffffff'
+            });
+            
+            const link = document.createElement('a');
+            link.download = 'prism_artifact.png';
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setShowExportMenu(false);
+        } catch (error) {
+            console.error("Export failed:", error);
+            alert("Failed to export image. Some external assets might be blocked.");
+        }
+    }
   };
 
   const handleBlur = () => {
@@ -73,19 +108,7 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
             }
             [data-prism-container] img:hover {
                 outline: 3px solid #a78bfa;
-                filter: brightness(0.9);
-            }
-            [data-prism-container] img::after {
-                content: "EDIT";
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: black;
-                color: white;
-                padding: 4px;
-                font-size: 10px;
-                pointer-events: none;
+                filter: brightness(0.95);
             }
         `;
     } else {
@@ -99,13 +122,31 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
         if (target.tagName === 'IMG') {
             e.preventDefault();
             e.stopPropagation();
+            
             const img = target as HTMLImageElement;
             const currentSrc = img.src;
             const newSrc = window.prompt("Enter new image URL:", currentSrc);
             
             if (newSrc && newSrc !== currentSrc) {
+                // Critical: Capture current innerHTML to preserve text edits that happened before this click
+                // before we modify the DOM or state.
+                // However, since we are inside the event handler, the DOM is current.
+                // We update the img src directly in DOM first to see result immediately?
+                // No, we must update state to persist it.
+                
+                // 1. Get current HTML snapshot from container (includes user text edits)
+                const currentHtmlSnapshot = container.innerHTML;
+                
+                // 2. Perform replacement on the snapshot string
+                // This is safer than relying on React state which might be slightly stale regarding text edits
+                // if handleBlur hasn't fired yet.
+                // However, simple string replace is risky if multiple same images exist.
+                
+                // Better approach: Update the DOM element directly, then snapshot.
                 img.src = newSrc;
-                onUpdateState({ html: container.innerHTML });
+                const updatedHtml = container.innerHTML;
+                
+                onUpdateState({ html: updatedHtml });
             }
         }
     };
@@ -172,20 +213,41 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 relative">
            {contentState.isEditable && (
-               <span className="text-xs text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded animate-pulse">
+               <span className="hidden md:inline text-xs text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded animate-pulse">
                  Click text to type, click images to replace
                </span>
            )}
 
-           <button 
-             onClick={downloadHtml}
-             className="flex items-center gap-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-brand-900/20"
-           >
-             <Download size={14} />
-             Export
-           </button>
+           <div className="relative">
+               <button 
+                 onClick={() => setShowExportMenu(!showExportMenu)}
+                 className="flex items-center gap-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-brand-900/20"
+               >
+                 <Download size={14} />
+                 Export
+               </button>
+
+               {showExportMenu && (
+                 <div className="absolute top-full right-0 mt-2 w-40 bg-dark-800 border border-dark-700 rounded-xl shadow-xl overflow-hidden z-50">
+                    <button 
+                      onClick={downloadHtml}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-dark-700 transition-colors text-gray-300 hover:text-white"
+                    >
+                      <FileCode size={14} />
+                      <span className="text-xs font-medium">Save HTML</span>
+                    </button>
+                    <button 
+                      onClick={downloadImage}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-dark-700 transition-colors text-gray-300 hover:text-white border-t border-dark-700"
+                    >
+                      <ImageIcon size={14} />
+                      <span className="text-xs font-medium">Save as Image</span>
+                    </button>
+                 </div>
+               )}
+           </div>
 
            <div className="h-4 w-px bg-dark-700"></div>
 
@@ -223,6 +285,10 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
           )}
         </div>
       </div>
+      
+      {showExportMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+      )}
     </div>
   );
 };

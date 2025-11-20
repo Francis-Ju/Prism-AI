@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight } from 'lucide-react';
+import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library } from 'lucide-react';
 import { ChatMessage, MessageRole, ModelType } from '../types';
 
 interface ChatSidebarProps {
@@ -13,7 +13,7 @@ interface ChatSidebarProps {
   selectedModel: ModelType;
   onSelectModel: (model: ModelType) => void;
   onOpenTemplates: () => void;
-  onLoadTemplate: (templateId: string) => void;
+  onApplyTemplate: (templateId: string) => void;
   onShowArtifact: () => void;
 }
 
@@ -27,7 +27,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   selectedModel,
   onSelectModel,
   onOpenTemplates,
-  onLoadTemplate,
+  onApplyTemplate,
   onShowArtifact
 }) => {
   const [inputValue, setInputValue] = useState('');
@@ -174,7 +174,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       <div 
                         key={t.id} 
                         className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
-                        onClick={() => onLoadTemplate(t.id)}
+                        onClick={() => onApplyTemplate(t.id)}
                       >
                         <div className="flex items-center gap-3 mb-2">
                            <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
@@ -228,7 +228,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             </div>
           )}
         </div>
-        {/* Spacer to ensure content doesn't hide behind sticky footer if we change positioning strategy, though flex-col handles this naturally */}
+        {/* Spacer to ensure content doesn't hide behind sticky footer */}
         <div ref={messagesEndRef} className="h-4" />
       </div>
 
@@ -249,23 +249,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               </button>
             </div>
           )}
-
-          {/* Quick Action: Recommend Templates */}
-          {!isProcessing && messages.length > 0 && messages[messages.length - 1].role === MessageRole.MODEL && (
-              <div className="flex justify-center md:justify-start mb-3 animate-fade-in">
-                <button
-                  onClick={() => onSendMessage("Please recommend templates from the template library based on our conversation.", undefined)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/20 hover:border-brand-500/40 rounded-full transition-all group"
-                >
-                  <Sparkles size={14} className="text-brand-400" />
-                  <span className="text-xs font-medium text-brand-300 group-hover:text-brand-200">
-                    Recommend templates from library
-                  </span>
-                </button>
-              </div>
-          )}
           
-          <div className={`relative flex items-end bg-dark-800/50 border border-dark-700 rounded-2xl focus-within:border-brand-500/50 focus-within:ring-1 focus-within:ring-brand-500/50 transition-all shadow-xl backdrop-blur-xl ${isCentered ? 'p-2' : 'p-1'}`}>
+          <div className={`relative flex flex-col bg-dark-800/50 border border-dark-700 rounded-2xl focus-within:border-brand-500/50 focus-within:ring-1 focus-within:ring-brand-500/50 transition-all shadow-xl backdrop-blur-xl ${isCentered ? 'p-3' : 'p-3'}`}>
             <input 
               type="file" 
               ref={fileInputRef}
@@ -274,75 +259,82 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               accept="image/*,.pdf,.pptx,.docx,.txt,.md,.json" 
             />
             
-            {/* Action Buttons Left */}
-            <div className="flex items-end gap-1 p-1">
-               <button 
-                 className="p-2 text-gray-400 hover:text-brand-400 transition-colors hover:bg-dark-700/50 rounded-xl"
-                 onClick={() => fileInputRef.current?.click()}
-                 title="Attach context"
-               >
-                 <Plus size={20} />
-               </button>
-               
-               <div className="relative">
-                   <button 
-                     className="p-2 text-gray-400 hover:text-brand-400 transition-colors hover:bg-dark-700/50 rounded-xl flex items-center gap-1"
-                     onClick={toggleModelMenu}
-                     title="Select Model"
-                   >
-                      {selectedModel === 'gemini-2.5-flash' ? <Zap size={20} /> : <BrainCircuit size={20} />}
-                      <ChevronDown size={12} />
-                   </button>
-                   {showModelMenu && (
-                     <div className="absolute bottom-full left-0 mb-2 w-48 bg-dark-800 border border-dark-700 rounded-xl shadow-xl overflow-hidden z-50">
-                        <button 
-                          onClick={() => { onSelectModel('gemini-2.5-flash'); setShowModelMenu(false); }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-dark-700 transition-colors ${selectedModel === 'gemini-2.5-flash' ? 'text-brand-400 bg-dark-700/50' : 'text-gray-300'}`}
-                        >
-                          <Zap size={16} />
-                          <div>
-                            <div className="text-sm font-medium">Flash 2.5</div>
-                            <div className="text-[10px] text-gray-500">Fast & Efficient</div>
-                          </div>
-                        </button>
-                        <button 
-                          onClick={() => { onSelectModel('gemini-3-pro-preview'); setShowModelMenu(false); }}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-dark-700 transition-colors ${selectedModel === 'gemini-3-pro-preview' ? 'text-brand-400 bg-dark-700/50' : 'text-gray-300'}`}
-                        >
-                          <BrainCircuit size={16} />
-                          <div>
-                            <div className="text-sm font-medium">Pro 3.0 (Preview)</div>
-                            <div className="text-[10px] text-gray-500">Complex Reasoning</div>
-                          </div>
-                        </button>
-                     </div>
-                   )}
-               </div>
-
-               <button 
-                 className="p-2 text-gray-400 hover:text-brand-400 transition-colors hover:bg-dark-700/50 rounded-xl"
-                 onClick={onOpenTemplates}
-                 title="Template Library"
-               >
-                 <LayoutTemplate size={20} />
-               </button>
-            </div>
-
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Message Prism..."
-              className="flex-1 bg-transparent text-white text-[15px] p-3 max-h-40 min-h-[50px] resize-none focus:outline-none placeholder-gray-500"
-              rows={1}
+              className={`w-full bg-transparent text-white text-[15px] p-2 ${isCentered ? 'min-h-[120px]' : 'min-h-[60px]'} resize-none focus:outline-none placeholder-gray-500 scrollbar-thumb-dark-700 scrollbar-track-transparent`}
             />
-            <button 
-              className={`p-3 rounded-xl transition-all duration-200 ${!inputValue.trim() && !selectedFile ? 'text-dark-600 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-200 shadow-lg shadow-white/10'}`}
-              onClick={handleSend}
-              disabled={!inputValue.trim() && !selectedFile}
-            >
-              {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-            </button>
+
+            {/* Toolbar Footer */}
+            <div className="flex items-center justify-between mt-2 pt-2">
+               
+               {/* Left Actions */}
+               <div className="flex items-center gap-2">
+                   <button 
+                     className="p-2 text-gray-400 hover:text-brand-400 transition-colors hover:bg-dark-700/50 rounded-xl"
+                     onClick={() => fileInputRef.current?.click()}
+                     title="Attach context"
+                   >
+                     <Plus size={20} />
+                   </button>
+                   
+                   <div className="relative">
+                       <button 
+                         className="p-2 text-gray-400 hover:text-brand-400 transition-colors hover:bg-dark-700/50 rounded-xl flex items-center gap-1"
+                         onClick={toggleModelMenu}
+                         title="Select Model"
+                       >
+                          {selectedModel === 'gemini-2.5-flash' ? <Zap size={20} /> : <BrainCircuit size={20} />}
+                          <ChevronDown size={12} />
+                       </button>
+                       {showModelMenu && (
+                         <div className="absolute bottom-full left-0 mb-2 w-48 bg-dark-800 border border-dark-700 rounded-xl shadow-xl overflow-hidden z-50">
+                            <button 
+                              onClick={() => { onSelectModel('gemini-2.5-flash'); setShowModelMenu(false); }}
+                              className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-dark-700 transition-colors ${selectedModel === 'gemini-2.5-flash' ? 'text-brand-400 bg-dark-700/50' : 'text-gray-300'}`}
+                            >
+                              <Zap size={16} />
+                              <div>
+                                <div className="text-sm font-medium">Flash 2.5</div>
+                                <div className="text-[10px] text-gray-500">Fast & Efficient</div>
+                              </div>
+                            </button>
+                            <button 
+                              onClick={() => { onSelectModel('gemini-3-pro-preview'); setShowModelMenu(false); }}
+                              className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-dark-700 transition-colors ${selectedModel === 'gemini-3-pro-preview' ? 'text-brand-400 bg-dark-700/50' : 'text-gray-300'}`}
+                            >
+                              <BrainCircuit size={16} />
+                              <div>
+                                <div className="text-sm font-medium">Pro 3.0 (Preview)</div>
+                                <div className="text-[10px] text-gray-500">Complex Reasoning</div>
+                              </div>
+                            </button>
+                         </div>
+                       )}
+                   </div>
+
+                   {/* Template Library Button */}
+                   <button 
+                     onClick={onOpenTemplates}
+                     className="p-2 text-gray-400 hover:text-brand-400 transition-colors hover:bg-dark-700/50 rounded-xl"
+                     title="Browse Templates"
+                   >
+                      <Library size={20} />
+                   </button>
+               </div>
+
+               {/* Right Actions */}
+               <button 
+                  className={`p-3 rounded-xl transition-all duration-200 ${!inputValue.trim() && !selectedFile ? 'text-dark-600 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-200 shadow-lg shadow-white/10'}`}
+                  onClick={handleSend}
+                  disabled={!inputValue.trim() && !selectedFile}
+                >
+                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+               </button>
+            </div>
+
           </div>
           {isCentered && (
              <p className="mt-4 text-center text-xs text-gray-600">
