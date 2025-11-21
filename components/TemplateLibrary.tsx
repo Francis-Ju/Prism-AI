@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Code, Trash2, Layout, Edit2, Check, Upload, MousePointerClick, Save, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Template } from '../types';
@@ -12,8 +11,13 @@ interface TemplateLibraryProps {
 
 const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSelectTemplate }) => {
   const [templates, setTemplates] = useState<Template[]>([]);
+  
+  // Editing State
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  
+  // Delete Confirmation State
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   
   // Code Editor State
   const [editorTemplate, setEditorTemplate] = useState<Template | null>(null);
@@ -41,19 +45,31 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
     localStorage.setItem('prism_templates', JSON.stringify(updatedTemplates));
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
+  // --- Delete Logic ---
+  
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    setEditingNameId(null); // Stop renaming if active
+    setDeletingId(id);      // Show inline confirmation
+  };
+
+  const handleConfirmDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const updated = templates.filter(t => t.id !== id);
+    handleSaveTemplates(updated);
+    setDeletingId(null);
     
-    if (window.confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
-      const updated = templates.filter(t => t.id !== id);
-      handleSaveTemplates(updated);
-      
-      if (editorTemplate?.id === id) {
-        setEditorTemplate(null);
-      }
+    if (editorTemplate?.id === id) {
+      setEditorTemplate(null);
     }
   };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingId(null);
+  };
+
+  // --------------------
 
   const handleAddNew = () => {
     const newTemplate: Template = {
@@ -101,6 +117,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
 
   const startRename = (e: React.MouseEvent, t: Template) => {
     e.stopPropagation();
+    setDeletingId(null); // Stop deleting if active
     setEditingNameId(t.id);
     setEditName(t.name);
   };
@@ -202,7 +219,11 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                  </div>
                  <div className="flex items-center gap-3">
                     <button 
-                      onClick={(e) => handleDelete(e, editorTemplate.id)}
+                      onClick={(e) => {
+                         if (window.confirm("Are you sure you want to delete this template?")) {
+                             handleConfirmDelete(e, editorTemplate.id);
+                         }
+                      }}
                       className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
                       title="Delete Template"
                     >
@@ -372,20 +393,41 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                             )}
                             
                             <div className="flex items-center gap-1">
-                              <button 
-                                onClick={(e) => startRename(e, template)}
-                                className="p-1.5 text-gray-500 hover:text-white hover:bg-dark-800 rounded transition-colors"
-                                title="Rename"
-                              >
-                                <Edit2 size={12} />
-                              </button>
-                              <button 
-                                onClick={(e) => handleDelete(e, template.id)}
-                                className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {deletingId === template.id ? (
+                                <>
+                                  <button 
+                                    onClick={(e) => handleConfirmDelete(e, template.id)}
+                                    className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded transition-colors"
+                                    title="Confirm Delete"
+                                  >
+                                    <Check size={12} />
+                                  </button>
+                                  <button 
+                                    onClick={handleCancelDelete}
+                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-dark-800 rounded transition-colors"
+                                    title="Cancel"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button 
+                                    onClick={(e) => startRename(e, template)}
+                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-dark-800 rounded transition-colors"
+                                    title="Rename"
+                                  >
+                                    <Edit2 size={12} />
+                                  </button>
+                                  <button 
+                                    onClick={(e) => handleDeleteClick(e, template.id)}
+                                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
                             </div>
                          </div>
                          <p className="text-[10px] text-gray-500 truncate">{template.description}</p>

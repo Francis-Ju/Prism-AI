@@ -36,13 +36,13 @@
                 700: '#3f3f46',
               },
               brand: {
-                400: '#a78bfa', // Violet/Purple vibe
-                500: '#8b5cf6',
-                600: '#7c3aed',
-                glow: '#8b5cf620'
+                400: 'rgb(var(--brand-400) / <alpha-value>)',
+                500: 'rgb(var(--brand-500) / <alpha-value>)',
+                600: 'rgb(var(--brand-600) / <alpha-value>)',
+                glow: 'rgb(var(--brand-500) / 0.2)'
               },
               accent: {
-                500: '#f472b6', // Pink accent
+                500: 'rgb(var(--accent-500) / <alpha-value>)'
               }
             }
           }
@@ -66,6 +66,23 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #52525b;
       }
+      
+      :root {
+        /* Prism Default (Purple) */
+        --brand-400: 167 139 250;
+        --brand-500: 139 92 246;
+        --brand-600: 124 58 237;
+        --accent-500: 244 114 182;
+      }
+
+      .theme-novartis {
+        /* Novartis (Orange) */
+        --brand-400: 253 186 116; /* Orange-300 */
+        --brand-500: 241 111 32;  /* #F16F20 */
+        --brand-600: 194 65 12;   /* Orange-700 */
+        --accent-500: 14 165 233; /* Sky-500 */
+      }
+
       body {
         background-color: #09090b;
         color: #e4e4e7;
@@ -77,7 +94,7 @@
         -webkit-backdrop-filter: blur(12px);
       }
       .text-gradient {
-        background: linear-gradient(to right, #a78bfa, #f472b6);
+        background: linear-gradient(to right, rgb(var(--brand-400)), rgb(var(--accent-500)));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
       }

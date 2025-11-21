@@ -49,6 +49,9 @@ const App: React.FC = () => {
   const [showArtifact, setShowArtifact] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  
+  // --- Theme State ---
+  const [theme, setTheme] = useState<'prism' | 'novartis'>('prism');
 
   const [deviceMode, setDeviceMode] = useState<DeviceMode>(DeviceMode.TABLET);
   const [contentState, setContentState] = useState<GeneratedContentState>({
@@ -66,7 +69,21 @@ const App: React.FC = () => {
       setUser(parsedUser);
       loadSessions(parsedUser.id);
     }
+
+    const storedTheme = localStorage.getItem('prism_theme') as 'prism' | 'novartis';
+    if (storedTheme) setTheme(storedTheme);
   }, []);
+
+  // --- Theme Effect ---
+  useEffect(() => {
+    document.body.className = theme === 'novartis' ? 'theme-novartis' : '';
+  }, [theme]);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'prism' ? 'novartis' : 'prism';
+    setTheme(newTheme);
+    localStorage.setItem('prism_theme', newTheme);
+  };
 
   // --- Session Management ---
   const loadSessions = (userId: string) => {
@@ -439,6 +456,8 @@ const App: React.FC = () => {
            onApplyTemplate={handleApplyTemplate}
            onShowArtifact={() => setShowArtifact(true)}
            hasArtifact={!!contentState.html}
+           currentTheme={theme}
+           onToggleTheme={toggleTheme}
         />
 
         {/* Preview Area */}
