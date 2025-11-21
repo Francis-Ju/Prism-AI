@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library } from 'lucide-react';
+import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library, PanelRight, ChevronUp } from 'lucide-react';
 import { ChatMessage, MessageRole, ModelType } from '../types';
 
 interface ChatSidebarProps {
@@ -15,6 +14,7 @@ interface ChatSidebarProps {
   onOpenTemplates: () => void;
   onApplyTemplate: (templateId: string) => void;
   onShowArtifact: () => void;
+  hasArtifact?: boolean;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({ 
@@ -28,7 +28,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onSelectModel,
   onOpenTemplates,
   onApplyTemplate,
-  onShowArtifact
+  onShowArtifact,
+  hasArtifact
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -192,23 +193,34 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   </div>
                 )}
 
-                {/* Artifact Preview Card (If explicitly generated) */}
-                {msg.artifactPreview && !msg.recommendedTemplates && (
+                {/* Artifact Preview Card (If explicitly generated) - Moved into message bubble */}
+                {msg.artifactPreview && (
                   <div 
-                    className="mt-4 bg-dark-950 rounded-xl overflow-hidden border border-dark-700 group cursor-pointer hover:border-brand-500/50 transition-all" 
+                    className="mt-4 relative overflow-hidden rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-900/20 to-dark-900/50 group cursor-pointer hover:border-brand-500/60 hover:from-brand-900/30 transition-all shadow-lg shadow-black/20" 
                     onClick={(e) => {
                       e.stopPropagation();
                       onShowArtifact();
                     }}
                   >
-                     <div className="h-2 bg-gradient-to-r from-brand-500 to-accent-500"></div>
-                     <div className="p-4 flex items-center justify-between">
-                        <div>
-                          <h4 className="font-bold text-white text-sm">{msg.artifactPreview.title}</h4>
-                          <p className="text-xs text-gray-500">{msg.artifactPreview.description}</p>
+                     {/* Decorative top line */}
+                     <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50"></div>
+                     
+                     <div className="p-4 flex items-center justify-between relative z-10">
+                        <div className="flex items-center gap-4">
+                           <div className="w-12 h-12 rounded-xl bg-dark-950/50 border border-brand-500/20 flex items-center justify-center text-brand-400 shadow-inner group-hover:scale-105 transition-transform duration-300">
+                              <PanelRight size={22} />
+                           </div>
+                           <div>
+                             <h4 className="font-bold text-white text-[15px] group-hover:text-brand-300 transition-colors">
+                               {msg.artifactPreview.title}
+                             </h4>
+                             <p className="text-xs text-gray-400 font-medium group-hover:text-gray-300 transition-colors">
+                               {msg.artifactPreview.description}
+                             </p>
+                           </div>
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-dark-800 flex items-center justify-center group-hover:bg-brand-500 group-hover:text-white transition-colors">
-                           <LayoutTemplate size={14} />
+                        <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-all duration-300">
+                           <ArrowRight size={16} />
                         </div>
                      </div>
                   </div>
@@ -233,10 +245,11 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       </div>
 
       {/* Sticky Input Area */}
-      <div className={`flex-none p-6 ${isCentered ? 'w-full' : 'bg-dark-950 border-t border-dark-800'} z-20`}>
+      <div className={`flex-none p-6 ${isCentered ? 'w-full' : 'bg-dark-950 border-t border-dark-800'} z-20 relative`}>
         
         {/* Centered Wrapper for Input */}
         <div className={isCentered ? "max-w-3xl mx-auto" : ""}>
+          
           {/* Selected File Chip */}
           {selectedFile && (
             <div className="mb-3 px-4 py-2 bg-dark-800/80 backdrop-blur-sm rounded-lg flex items-center justify-between border border-dark-700 animate-slide-up w-fit">
@@ -264,7 +277,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Message Prism..."
-              className={`w-full bg-transparent text-white text-[15px] p-2 ${isCentered ? 'min-h-[120px]' : 'min-h-[60px]'} resize-none focus:outline-none placeholder-gray-500 scrollbar-thumb-dark-700 scrollbar-track-transparent`}
+              className={`w-full bg-transparent text-white text-[15px] p-2 ${isCentered ? 'min-h-[50px]' : 'min-h-[20px]'} resize-none focus:outline-none placeholder-gray-500 scrollbar-thumb-dark-700 scrollbar-track-transparent`}
             />
 
             {/* Toolbar Footer */}

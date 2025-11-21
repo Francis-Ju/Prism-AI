@@ -12,25 +12,25 @@ const contentGenerationSchema: Schema = {
   properties: {
     thoughtProcess: {
       type: Type.STRING,
-      description: "Detailed analysis of the user's request and any attached documents. Analyze the file content deeply, extract key data points, identify the core message, and outline the design strategy for the HTML artifact.",
+      description: "Detailed analysis of the request. Identify key medical/pharma data points, compliance requirements, and visual strategy.",
     },
     chatResponse: {
       type: Type.STRING,
-      description: "The conversational response to display in the chat window.",
+      description: "Professional conversational response.",
     },
     generatedHtml: {
       type: Type.STRING,
-      description: "The full, valid HTML string for the long graphic/landing page. Use Tailwind CSS classes for styling. Do not include <html> or <body> tags, just the inner content structure. Ensure it looks modern and premium.",
+      description: "Complete, valid HTML string using Tailwind CSS. CRITICAL: MUST be Mobile-First (w-full, flex-col on mobile). Use #F16F20 for accents. Include CSS-based data visualizations (charts/stats). Do not include <html>/<body> tags.",
     },
     recommendedTemplates: {
       type: Type.ARRAY,
-      description: "A list of template IDs from the provided library that would be suitable starting points for the user's request.",
+      description: "Recommended templates.",
       items: {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
           name: { type: Type.STRING },
-          description: { type: Type.STRING, description: "A brief reason why this template is recommended." }
+          description: { type: Type.STRING }
         },
         required: ["id", "name", "description"]
       }
@@ -44,7 +44,7 @@ export const generateAgentResponse = async (
   history: { role: string; parts: any[] }[],
   inlineData?: string,
   mimeType?: string,
-  modelName: string = 'gemini-2.5-flash'
+  modelName: string = 'gemini-3-pro-preview'
 ) => {
   try {
     // Construct contents
@@ -79,44 +79,54 @@ export const generateAgentResponse = async (
         }
       ],
       config: {
-        systemInstruction: `You are Prism, an advanced Design Intelligence Agent.
-        
-        Your personality is sophisticated, creative, and precise. You turn abstract ideas into visual reality.
-        
-        AVAILABLE TEMPLATES:
-        ${JSON.stringify(templateContext)}
+        systemInstruction: `
+        You are Prism, an elite Design Intelligence Agent for **Novartis**. Your goal is to transform pharmaceutical concepts into high-end, responsive digital artifacts.
 
-        1. **Analysis**: When a user provides a document (PDF/Image/Text), you MUST first analyze it in your 'thoughtProcess'. 
-           - Identify the main topic (e.g., Pharmaceutical product, Financial report, Event flyer).
-           - Extract key statistics, dates, or features.
-           - Determine the sentiment and appropriate visual tone.
-           - It is recommended to conform to the rigorous visual style of the pharmaceutical industry, and it would be even better if it aligns with Novartis' style.
-        
-        2. **Recommendation**: If the user's request aligns with one of our available templates, recommend it in the 'recommendedTemplates' array. This helps the user get started quickly.
-        
-        3. **Generation**: When asked to generate the visual content *directly* (or if no template fits), output highly polished HTML using Tailwind CSS utility classes in 'generatedHtml'. 
-           - The HTML should be responsive and beautiful.
-           - If some data information is obtained from the analyzed content, please generate reasonable and attractive charts.
-           - Use modern design principles (whitespace, typography, contrast).
-           - Focus on "Long Graphic" or "Landing Page" styles.
-        
-        OUTPUT FORMAT:
-        You must respond in JSON format adhering to the schema provided.
-        - 'thoughtProcess': Your internal reasoning and DOCUMENT ANALYSIS.
-        - 'chatResponse': What you say to the user.
-        - 'recommendedTemplates': List of suitable templates.
-        - 'generatedHtml': The HTML content for the preview pane (optional).
+        **DESIGN SYSTEM & MANDATE:**
+
+        1.  **Aesthetics (Novartis Aligned)**:
+            -   **Philosophy**: "Inspired by Science." Clean, precise, editorial, and human-centric.
+            -   **Color Palette**: 
+                -   **Primary Accent**: **#F16F20 (Novartis Orange)**. Use this for call-to-actions, key metrics, and highlights.
+                -   **Foundation**: White, Warm Greys (Slate-50 to Slate-900).
+                -   **Supporting**: Deep Medical Teals or Navy for credibility.
+            -   **Layout**: Generous whitespace, rounded corners (rounded-xl), and subtle shadows (shadow-lg).
+
+        2.  **Data Visualization (CRITICAL)**:
+            -   Pharmaceutical content requires evidence. You **MUST** visualize data.
+            -   **Implementation**: Use Tailwind CSS to build charts *without* external scripts (for robustness).
+            -   **Patterns to Generate**:
+                -   **Stat Grids**: Big bold numbers (text-4xl text-[#F16F20]) with labels in grid layouts.
+                -   **Progress/Efficacy Bars**: \`w-full bg-slate-200 rounded-full h-4\` containers with inner colored divs.
+                -   **Comparison Charts**: Horizontal or vertical bars comparing Drug A vs Placebo.
+                -   **Timelines**: Vertical borders tracking clinical trial phases.
+
+        3.  **Mobile Responsiveness (Strict)**:
+            -   The output is viewed on Mobile (375px) and Desktop.
+            -   **Mobile-First Rules**:
+                -   **Default to Mobile**: Start with \`flex-col\`, \`w-full\`, \`p-4\`.
+                -   **Desktop Enhancements**: Use \`md:flex-row\`, \`md:grid-cols-2\`, \`md:p-8\`.
+                -   **NEVER** use fixed pixel widths (e.g., \`w-[800px]\` is FORBIDDEN). Use \`max-w-5xl mx-auto\` for containers.
+                -   **Images**: Always \`w-full h-auto object-cover\`.
+                -   **Tables**: Must be wrapped in \`div.overflow-x-auto\`.
+
+        **Process**:
+        1.  **Analyze**: Extract key medical themes, drug efficacy stats, or patient benefits from the input.
+        2.  **Design**: Generate HTML structure (Hero -> Key Data/Charts -> Detailed Info -> References).
+        3.  **Output**: Return the JSON with the \`generatedHtml\`.
+
+        **Context Templates**:
+        ${JSON.stringify(templateContext)}
         `,
         responseMimeType: "application/json",
         responseSchema: contentGenerationSchema,
-        // Use a slightly higher temperature for creative tasks
         temperature: 0.7, 
       }
     });
 
     let text = response.text;
 
-    // Robust JSON extraction: find the first '{' and last '}' to ignore potential markdown or preamble
+    // Robust JSON extraction
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
 
@@ -128,7 +138,6 @@ export const generateAgentResponse = async (
       return JSON.parse(text);
     } catch (e) {
       console.error("JSON Parsing failed", e, text);
-      // Fallback to prevent app crash, returning the raw text as the chat response
       return {
         thoughtProcess: "Error parsing structured response.",
         chatResponse: text || "I encountered an issue processing the design. Please try again.",

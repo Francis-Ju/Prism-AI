@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import ChatSidebar from './components/ChatSidebar';
 import PreviewArea from './components/PreviewArea';
@@ -44,7 +43,7 @@ const App: React.FC = () => {
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-preview');
   
   // --- UI State ---
   const [showArtifact, setShowArtifact] = useState(false);
@@ -127,6 +126,13 @@ const App: React.FC = () => {
         // Just set initial state for internal logic
         setMessages([initialMessage]);
         setCurrentSessionId(null); 
+        // Fix: Ensure content state is reset on load to prevent ghost artifacts
+        setContentState({
+            html: '',
+            backgroundColor: '#ffffff',
+            fontFamily: 'sans-serif',
+            isEditable: false
+        });
     }
   };
 
@@ -160,6 +166,13 @@ const App: React.FC = () => {
         setShowArtifact(true);
       } else {
         setShowArtifact(false);
+        // Reset content state to avoid ghost artifact card from previous session
+        setContentState({
+          html: '',
+          backgroundColor: '#ffffff',
+          fontFamily: 'sans-serif',
+          isEditable: false
+        });
       }
     }
   };
@@ -351,8 +364,8 @@ const App: React.FC = () => {
         isThinking: false,
         // If HTML was generated, add a preview card to the message
         artifactPreview: response.generatedHtml ? {
-            title: "Generated Artifact",
-            description: "Click to view design"
+            title: "View Generated Artifact",
+            description: "Click to expand the design panel"
         } : undefined,
         // Map structured recommendation to message field
         recommendedTemplates: response.recommendedTemplates
@@ -425,6 +438,7 @@ const App: React.FC = () => {
            onOpenTemplates={() => setShowTemplates(true)}
            onApplyTemplate={handleApplyTemplate}
            onShowArtifact={() => setShowArtifact(true)}
+           hasArtifact={!!contentState.html}
         />
 
         {/* Preview Area */}

@@ -23,8 +23,24 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
   onUpdateState,
   onClose
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showExportMenu]);
 
   const getContainerWidth = () => {
     switch (deviceMode) {
@@ -44,24 +60,23 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     element.download = "prism_artifact.html";
     document.body.appendChild(element);
     element.click();
+    document.body.removeChild(element);
     setShowExportMenu(false);
   };
 
   const downloadImage = async () => {
-    if (containerRef.current) {
+    // We need to capture the body of the iframe
+    if (iframeRef.current && iframeRef.current.contentDocument) {
         try {
-            // Temporarily disable edit mode to clear guidelines
-            const wasEditable = contentState.isEditable;
-            if (wasEditable) {
-               // We need to handle this state carefully. 
-               // For now, just using the rendered DOM is fine, styles handle the outlines.
-               // But ideally we'd turn off edit borders.
-            }
-
-            const canvas = await html2canvas(containerRef.current, {
-                useCORS: true, // Important for external images
-                scale: 2, // Higher quality
-                backgroundColor: contentState.backgroundColor || '#ffffff'
+            const iframeBody = iframeRef.current.contentDocument.body;
+            
+            const canvas = await html2canvas(iframeBody, {
+                useCORS: true, 
+                scale: 2, 
+                backgroundColor: contentState.backgroundColor || '#ffffff',
+                // Adjust width to match current view to avoid capturing white space if in mobile mode
+                windowWidth: iframeBody.scrollWidth,
+                windowHeight: iframeBody.scrollHeight
             });
             
             const link = document.createElement('a');
@@ -78,85 +93,80 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     }
   };
 
-  const handleBlur = () => {
-    if (containerRef.current && contentState.isEditable) {
-      onUpdateState({ html: containerRef.current.innerHTML });
-    }
-  }
+  // Construct the source document for the iframe
+  // We inject the content and the logic for edit mode interaction directly into the iframe
+  const srcDoc = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+           /* Hide scrollbar for clean preview */
+           ::-webkit-scrollbar { width: 0px; background: transparent; }
+           body { 
+               background-color: ${backgroundColor}; 
+               min-height: 100vh;
+               margin: 0;
+               overflow-x: hidden;
+               font-family: system-ui, -apple-system, sans-serif;
+           }
+           ${contentState.isEditable ? `
+           [data-prism-container] img {
+               transition: all 0.2s ease;
+               cursor: pointer !important;
+               position: relative;
+           }
+           [data-prism-container] img:hover {
+               outline: 3px solid #a78bfa;
+               filter: brightness(0.95);
+           }
+           [data-prism-container] *:focus {
+               outline: 2px dashed #a78bfa;
+               outline-offset: 2px;
+           }
+           ` : ''}
+        </style>
+    </head>
+    <body ${contentState.isEditable ? 'contenteditable="true"' : ''} data-prism-container="true">
+      ${htmlContent}
+    </body>
+    </html>
+  `;
 
-  // Effect to toggle contentEditable and Image Interactions
-  useEffect(() => {
-    if (!containerRef.current) return;
-    
-    const container = containerRef.current;
-    
-    // Add custom styles for edit mode if active
-    const styleId = 'prism-edit-styles';
-    let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-    if (!styleEl) {
-        styleEl = document.createElement('style');
-        styleEl.id = styleId;
-        document.head.appendChild(styleEl);
-    }
+  const handleIframeLoad = () => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
 
+    // Logic: Sync content back to parent on blur (text edits)
     if (contentState.isEditable) {
-        styleEl.innerHTML = `
-            [data-prism-container] img {
-                transition: all 0.2s ease;
-                cursor: pointer !important;
-                position: relative;
+        doc.body.addEventListener('blur', () => {
+            // Only update if content actually changed to avoid unnecessary re-renders
+            if (doc.body.innerHTML !== contentState.html) {
+                onUpdateState({ html: doc.body.innerHTML });
             }
-            [data-prism-container] img:hover {
-                outline: 3px solid #a78bfa;
-                filter: brightness(0.95);
+        }, true);
+
+        // Logic: Handle image clicks for replacement
+        doc.body.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'IMG') {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const img = target as HTMLImageElement;
+                const currentSrc = img.src;
+                const newSrc = window.prompt("Enter new image URL:", currentSrc);
+                
+                if (newSrc && newSrc !== currentSrc) {
+                    img.src = newSrc;
+                    onUpdateState({ html: doc.body.innerHTML });
+                }
             }
-        `;
-    } else {
-        styleEl.innerHTML = '';
+        });
     }
-
-    // Image click handler for replacement
-    const handleImageClick = (e: MouseEvent) => {
-        if (!contentState.isEditable) return;
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'IMG') {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const img = target as HTMLImageElement;
-            const currentSrc = img.src;
-            const newSrc = window.prompt("Enter new image URL:", currentSrc);
-            
-            if (newSrc && newSrc !== currentSrc) {
-                // Critical: Capture current innerHTML to preserve text edits that happened before this click
-                // before we modify the DOM or state.
-                // However, since we are inside the event handler, the DOM is current.
-                // We update the img src directly in DOM first to see result immediately?
-                // No, we must update state to persist it.
-                
-                // 1. Get current HTML snapshot from container (includes user text edits)
-                const currentHtmlSnapshot = container.innerHTML;
-                
-                // 2. Perform replacement on the snapshot string
-                // This is safer than relying on React state which might be slightly stale regarding text edits
-                // if handleBlur hasn't fired yet.
-                // However, simple string replace is risky if multiple same images exist.
-                
-                // Better approach: Update the DOM element directly, then snapshot.
-                img.src = newSrc;
-                const updatedHtml = container.innerHTML;
-                
-                onUpdateState({ html: updatedHtml });
-            }
-        }
-    };
-
-    container.addEventListener('click', handleImageClick);
-    return () => {
-        container.removeEventListener('click', handleImageClick);
-    };
-
-  }, [contentState.isEditable, onUpdateState]);
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0c0c0e] border-l border-dark-800 shadow-2xl relative animate-fade-in min-w-0">
@@ -220,7 +230,7 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
                </span>
            )}
 
-           <div className="relative">
+           <div className="relative" ref={exportMenuRef}>
                <button 
                  onClick={() => setShowExportMenu(!showExportMenu)}
                  className="flex items-center gap-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-brand-900/20"
@@ -261,34 +271,28 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
         </div>
       </div>
 
-      {/* Canvas Area */}
-      <div className="flex-1 overflow-auto relative p-4 md:p-8 flex justify-center bg-dots-pattern">
+      {/* Canvas Area - Now uses Iframe for true responsive preview */}
+      <div className="flex-1 overflow-hidden relative p-4 md:p-8 flex justify-center bg-dots-pattern">
         <div 
-          className={`transition-all duration-500 ease-in-out bg-white shadow-2xl ${getContainerWidth()} w-full min-h-[800px] h-fit overflow-hidden ring-1 ring-dark-800 ${contentState.isEditable ? 'ring-2 ring-yellow-500/50' : ''}`}
-          style={{ backgroundColor }}
+          className={`transition-all duration-500 ease-in-out bg-white shadow-2xl ${getContainerWidth()} w-full h-full rounded-lg overflow-hidden ring-1 ring-dark-800 ${contentState.isEditable ? 'ring-2 ring-yellow-500/50' : ''}`}
         >
           {htmlContent ? (
-             <div 
-                ref={containerRef}
-                data-prism-container="true"
-                contentEditable={contentState.isEditable}
-                suppressContentEditableWarning={true}
-                dangerouslySetInnerHTML={{ __html: htmlContent }} 
-                className="w-full h-full outline-none" 
-                onBlur={handleBlur}
+             <iframe
+                ref={iframeRef}
+                srcDoc={srcDoc}
+                onLoad={handleIframeLoad}
+                className="w-full h-full border-none bg-white"
+                title="Prism Preview"
+                sandbox="allow-scripts allow-same-origin allow-modals"
              />
           ) : (
-            <div className="flex flex-col items-center justify-center h-[600px] text-gray-400 space-y-4">
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
               <Loader2 className="animate-spin text-brand-500" size={32} />
               <p>Rendering artifact...</p>
             </div>
           )}
         </div>
       </div>
-      
-      {showExportMenu && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-      )}
     </div>
   );
 };
