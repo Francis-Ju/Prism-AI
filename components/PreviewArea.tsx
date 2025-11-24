@@ -27,6 +27,9 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Determine if we are currently in "Dark Mode" based on the background color
+  const isDarkMode = backgroundColor === '#09090b';
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -65,22 +68,30 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
   };
 
   const downloadImage = async () => {
-    // We need to capture the body of the iframe
     if (iframeRef.current && iframeRef.current.contentDocument) {
         try {
-            const iframeBody = iframeRef.current.contentDocument.body;
+            const iframe = iframeRef.current;
+            const doc = iframe.contentDocument;
+            const body = doc.body;
+
+            // Get exact render dimensions
+            const width = iframe.offsetWidth;
+            const height = doc.documentElement.scrollHeight;
             
-            const canvas = await html2canvas(iframeBody, {
+            const canvas = await html2canvas(body, {
                 useCORS: true, 
                 scale: 2, 
                 backgroundColor: contentState.backgroundColor || '#ffffff',
-                // Adjust width to match current view to avoid capturing white space if in mobile mode
-                windowWidth: iframeBody.scrollWidth,
-                windowHeight: iframeBody.scrollHeight
+                width: width,
+                height: height,
+                windowWidth: width,
+                windowHeight: height,
+                logging: false,
+                scrollY: 0
             });
             
             const link = document.createElement('a');
-            link.download = 'prism_artifact.png';
+            link.download = `prism_artifact_${Date.now()}.png`;
             link.href = canvas.toDataURL('image/png');
             document.body.appendChild(link);
             link.click();
@@ -93,8 +104,37 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     }
   };
 
+  // CSS Logic to force Dark Mode styles on standard Tailwind classes
+  // This allows us to "re-theme" generated content without rewriting the HTML structure
+  const darkModeStyles = `
+    body { background-color: #09090b !important; color: #e4e4e7 !important; }
+    
+    /* Background Overrides */
+    .bg-white { background-color: #18181b !important; }
+    .bg-slate-50, .bg-gray-50, .bg-zinc-50 { background-color: #09090b !important; }
+    .bg-slate-100, .bg-gray-100 { background-color: #27272a !important; }
+    .bg-orange-50 { background-color: #2a1b12 !important; border-color: #431407 !important; }
+    .bg-blue-50 { background-color: #172554 !important; border-color: #1e3a8a !important; }
+    .bg-green-50 { background-color: #052e16 !important; border-color: #14532d !important; }
+    .bg-red-50 { background-color: #450a0a !important; border-color: #7f1d1d !important; }
+    
+    /* Text Overrides */
+    .text-slate-900, .text-gray-900, .text-zinc-900, .text-black { color: #f4f4f5 !important; }
+    .text-slate-800, .text-gray-800 { color: #e4e4e7 !important; }
+    .text-slate-700, .text-gray-700 { color: #d4d4d8 !important; }
+    .text-slate-600, .text-gray-600 { color: #a1a1aa !important; }
+    .text-slate-500, .text-gray-500 { color: #71717a !important; }
+    
+    /* Border Overrides */
+    .border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200 { border-color: #27272a !important; }
+    .border-white { border-color: #27272a !important; }
+    
+    /* Specific Element Fixes */
+    input { background-color: #27272a !important; color: white !important; border-color: #3f3f46 !important; }
+    .shadow-xl, .shadow-lg, .shadow-md { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important; }
+  `;
+
   // Construct the source document for the iframe
-  // We inject the content and the logic for edit mode interaction directly into the iframe
   const srcDoc = `
     <!DOCTYPE html>
     <html lang="en">
@@ -111,7 +151,11 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
                margin: 0;
                overflow-x: hidden;
                font-family: system-ui, -apple-system, sans-serif;
+               transition: background-color 0.3s ease, color 0.3s ease;
            }
+           
+           ${isDarkMode ? darkModeStyles : ''}
+
            ${contentState.isEditable ? `
            [data-prism-container] img {
                transition: all 0.2s ease;
@@ -142,7 +186,6 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     // Logic: Sync content back to parent on blur (text edits)
     if (contentState.isEditable) {
         doc.body.addEventListener('blur', () => {
-            // Only update if content actually changed to avoid unnecessary re-renders
             if (doc.body.innerHTML !== contentState.html) {
                 onUpdateState({ html: doc.body.innerHTML });
             }
@@ -271,26 +314,30 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
         </div>
       </div>
 
-      {/* Canvas Area - Now uses Iframe for true responsive preview */}
-      <div className="flex-1 overflow-hidden relative p-4 md:p-8 flex justify-center bg-dots-pattern">
-        <div 
-          className={`transition-all duration-500 ease-in-out bg-white shadow-2xl ${getContainerWidth()} w-full h-full rounded-lg overflow-hidden ring-1 ring-dark-800 ${contentState.isEditable ? 'ring-2 ring-yellow-500/50' : ''}`}
-        >
-          {htmlContent ? (
-             <iframe
-                ref={iframeRef}
-                srcDoc={srcDoc}
-                onLoad={handleIframeLoad}
-                className="w-full h-full border-none bg-white"
-                title="Prism Preview"
-                sandbox="allow-scripts allow-same-origin allow-modals"
-             />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
-              <Loader2 className="animate-spin text-brand-500" size={32} />
-              <p>Rendering artifact...</p>
+      {/* Main Content Area: Canvas */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Canvas Area */}
+        <div className="flex-1 overflow-hidden relative p-4 md:p-8 flex justify-center bg-dots-pattern">
+            <div 
+            className={`transition-all duration-500 ease-in-out bg-white shadow-2xl ${getContainerWidth()} w-full h-full rounded-lg overflow-hidden ring-1 ring-dark-800 ${contentState.isEditable ? 'ring-2 ring-yellow-500/50' : ''}`}
+            >
+            {htmlContent ? (
+                <iframe
+                    ref={iframeRef}
+                    srcDoc={srcDoc}
+                    onLoad={handleIframeLoad}
+                    className="w-full h-full border-none bg-white transition-colors duration-300"
+                    style={{ backgroundColor: backgroundColor }}
+                    title="Prism Preview"
+                    sandbox="allow-scripts allow-same-origin allow-modals"
+                />
+            ) : (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4">
+                <Loader2 className="animate-spin text-brand-500" size={32} />
+                <p>Rendering artifact...</p>
+                </div>
+            )}
             </div>
-          )}
         </div>
       </div>
     </div>

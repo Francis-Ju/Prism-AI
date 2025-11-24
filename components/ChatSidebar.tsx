@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library, PanelRight, Palette, Edit2, RefreshCw, X, Check, Brain } from 'lucide-react';
+import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library, PanelRight, Palette, Edit2, RefreshCw, X, Check, Brain, Layers } from 'lucide-react';
 import { ChatMessage, MessageRole, ModelType } from '../types';
 
 interface ChatSidebarProps {
@@ -15,6 +15,7 @@ interface ChatSidebarProps {
   onOpenTemplates: () => void;
   onApplyTemplate: (templateId: string) => void;
   onShowArtifact: () => void;
+  onLoadArtifact: (html: string) => void;
   hasArtifact?: boolean;
   currentTheme: 'prism' | 'novartis';
   onToggleTheme: () => void;
@@ -36,6 +37,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onOpenTemplates,
   onApplyTemplate,
   onShowArtifact,
+  onLoadArtifact,
   hasArtifact,
   currentTheme,
   onToggleTheme,
@@ -246,59 +248,71 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                     <p className="whitespace-pre-wrap">{msg.text}</p>
 
-                    {/* Recommended Templates Cards */}
-                    {msg.recommendedTemplates && msg.recommendedTemplates.length > 0 && (
-                      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {msg.recommendedTemplates.map(t => (
-                          <div 
-                            key={t.id} 
-                            className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
-                            onClick={() => onApplyTemplate(t.id)}
-                          >
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
-                                <LayoutTemplate size={16} />
+                    {/* Artifact Options (Cards) */}
+                    {msg.artifactOptions && msg.artifactOptions.length > 0 && (
+                      <div className="mt-5 space-y-2">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                          <Layers size={14} />
+                          Generated Designs ({msg.artifactOptions.length})
+                        </h4>
+                        <div className="grid grid-cols-1 gap-3">
+                          {msg.artifactOptions.map((opt, idx) => (
+                            <div 
+                              key={opt.id || idx}
+                              className="bg-dark-950/80 border border-dark-700 rounded-xl overflow-hidden cursor-pointer group hover:border-brand-500/50 hover:shadow-lg transition-all"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onLoadArtifact(opt.htmlContent);
+                              }}
+                            >
+                              <div className="p-4 flex items-center justify-between">
+                                 <div className="flex items-center gap-4">
+                                   <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+                                      <PanelRight size={20} />
+                                   </div>
+                                   <div>
+                                      <h5 className="font-bold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{opt.title}</h5>
+                                      <p className="text-xs text-gray-500 line-clamp-1">{opt.description}</p>
+                                   </div>
+                                 </div>
+                                 <div className="p-2 rounded-full bg-dark-800 text-gray-400 group-hover:bg-brand-600 group-hover:text-white transition-colors">
+                                   <ArrowRight size={16} />
+                                 </div>
                               </div>
-                              <h4 className="font-semibold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{t.name}</h4>
                             </div>
-                            <p className="text-xs text-gray-500 leading-relaxed mb-3 line-clamp-2">{t.description}</p>
-                            <button className="w-full py-2 bg-dark-800 hover:bg-brand-600 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                              <span>Use Template</span>
-                              <ArrowRight size={12} />
-                            </button>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {/* Artifact Preview Card */}
-                    {msg.artifactPreview && (
-                      <div 
-                        className="mt-4 relative overflow-hidden rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-900/20 to-dark-900/50 group cursor-pointer hover:border-brand-500/60 hover:from-brand-900/30 transition-all shadow-lg shadow-black/20" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onShowArtifact();
-                        }}
-                      >
-                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50"></div>
-                        <div className="p-4 flex items-center justify-between relative z-10">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-xl bg-dark-950/50 border border-brand-500/20 flex items-center justify-center text-brand-400 shadow-inner group-hover:scale-105 transition-transform duration-300">
-                                  <PanelRight size={22} />
+                    {/* Recommended Templates Cards */}
+                    {msg.recommendedTemplates && msg.recommendedTemplates.length > 0 && (
+                      <div className="mt-5">
+                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-2">
+                            <Library size={14} />
+                            Suggested Templates
+                         </h4>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {msg.recommendedTemplates.map(t => (
+                              <div 
+                                key={t.id} 
+                                className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
+                                onClick={() => onApplyTemplate(t.id)}
+                              >
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+                                    <LayoutTemplate size={16} />
+                                  </div>
+                                  <h4 className="font-semibold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{t.name}</h4>
+                                </div>
+                                <p className="text-xs text-gray-500 leading-relaxed mb-3 line-clamp-2">{t.description}</p>
+                                <button className="w-full py-2 bg-dark-800 hover:bg-brand-600 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                                  <span>Use Template</span>
+                                  <ArrowRight size={12} />
+                                </button>
                               </div>
-                              <div>
-                                <h4 className="font-bold text-white text-[15px] group-hover:text-brand-300 transition-colors">
-                                  {msg.artifactPreview.title}
-                                </h4>
-                                <p className="text-xs text-gray-400 font-medium group-hover:text-gray-300 transition-colors">
-                                  {msg.artifactPreview.description}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-all duration-300">
-                              <ArrowRight size={16} />
-                            </div>
-                        </div>
+                            ))}
+                         </div>
                       </div>
                     )}
 

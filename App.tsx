@@ -299,6 +299,17 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLoadArtifact = (html: string) => {
+    const newArtifactState = {
+      ...contentState,
+      html: html
+    };
+    setContentState(newArtifactState);
+    setShowArtifact(true);
+    // Update session state as well so it persists if user navigates away and back
+    updateCurrentSession(messages, newArtifactState);
+  };
+
   // --- Message Handling ---
   const handleSendMessage = async (text: string, file?: File) => {
     // 1. Prepare Attachment Data
@@ -386,10 +397,7 @@ const App: React.FC = () => {
         text: response.chatResponse,
         thoughtProcess: response.thoughtProcess,
         isThinking: false,
-        artifactPreview: response.generatedHtml ? {
-            title: "View Generated Artifact",
-            description: "Click to expand the design panel"
-        } : undefined,
+        artifactOptions: response.generatedArtifacts,
         recommendedTemplates: response.recommendedTemplates
       };
 
@@ -397,14 +405,17 @@ const App: React.FC = () => {
       setMessages(finalMessages);
 
       let newArtifactState = undefined;
-      if (response.generatedHtml) {
+      
+      // Auto-open if only one artifact is generated
+      if (response.generatedArtifacts && response.generatedArtifacts.length === 1) {
         newArtifactState = {
           ...contentState,
-          html: response.generatedHtml!
+          html: response.generatedArtifacts[0].htmlContent
         };
         setContentState(newArtifactState);
         setShowArtifact(true);
       }
+      // If multiple artifacts are generated, we do NOT auto-open. User must select from cards.
 
       updateCurrentSession(finalMessages, newArtifactState);
 
@@ -488,10 +499,7 @@ const App: React.FC = () => {
             text: response.chatResponse,
             thoughtProcess: response.thoughtProcess,
             isThinking: false,
-            artifactPreview: response.generatedHtml ? {
-                title: "View Generated Artifact",
-                description: "Click to expand the design panel"
-            } : undefined,
+            artifactOptions: response.generatedArtifacts,
             recommendedTemplates: response.recommendedTemplates
         };
 
@@ -499,8 +507,8 @@ const App: React.FC = () => {
         setMessages(finalMessages);
 
         let newArtifactState = undefined;
-        if (response.generatedHtml) {
-            newArtifactState = { ...contentState, html: response.generatedHtml! };
+        if (response.generatedArtifacts && response.generatedArtifacts.length === 1) {
+            newArtifactState = { ...contentState, html: response.generatedArtifacts[0].htmlContent };
             setContentState(newArtifactState);
             setShowArtifact(true);
         }
@@ -590,10 +598,7 @@ const App: React.FC = () => {
             text: response.chatResponse,
             thoughtProcess: response.thoughtProcess,
             isThinking: false,
-            artifactPreview: response.generatedHtml ? {
-                title: "View Generated Artifact",
-                description: "Click to expand the design panel"
-            } : undefined,
+            artifactOptions: response.generatedArtifacts,
             recommendedTemplates: response.recommendedTemplates
         };
 
@@ -601,8 +606,8 @@ const App: React.FC = () => {
         setMessages(finalMessages);
 
         let newArtifactState = undefined;
-        if (response.generatedHtml) {
-            newArtifactState = { ...contentState, html: response.generatedHtml! };
+        if (response.generatedArtifacts && response.generatedArtifacts.length === 1) {
+            newArtifactState = { ...contentState, html: response.generatedArtifacts[0].htmlContent };
             setContentState(newArtifactState);
             setShowArtifact(true);
         }
@@ -660,6 +665,7 @@ const App: React.FC = () => {
            onOpenTemplates={() => setShowTemplates(true)}
            onApplyTemplate={handleApplyTemplate}
            onShowArtifact={() => setShowArtifact(true)}
+           onLoadArtifact={handleLoadArtifact}
            hasArtifact={!!contentState.html}
            currentTheme={theme}
            onToggleTheme={toggleTheme}

@@ -16,6 +16,13 @@ export interface RecommendedTemplate {
   description: string;
 }
 
+export interface ArtifactOption {
+  id: string;
+  title: string;
+  description: string;
+  htmlContent: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -28,10 +35,7 @@ export interface ChatMessage {
   }[];
   isThinking?: boolean;
   isError?: boolean;
-  artifactPreview?: {
-    title: string;
-    description: string;
-  };
+  artifactOptions?: ArtifactOption[];
   recommendedTemplates?: RecommendedTemplate[];
 }
 
