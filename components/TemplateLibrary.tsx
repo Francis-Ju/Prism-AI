@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Code, Trash2, Layout, Edit2, Check, Upload, MousePointerClick, Save, ArrowLeft, AlertCircle } from 'lucide-react';
+import { X, Plus, Code, Trash2, Layout, Edit2, Check, Upload, MousePointerClick, Save, ArrowLeft, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Template } from '../types';
 import { DEFAULT_TEMPLATES } from '../constants';
 
@@ -159,6 +159,29 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
     setEditorTemplate(null);
   };
 
+  const handleNavigate = (direction: 'prev' | 'next') => {
+    if (!editorTemplate) return;
+
+    // Check for unsaved changes
+    if (editorCode !== editorTemplate.htmlContent) {
+      if (!window.confirm('You have unsaved changes. Switching templates will discard them. Continue?')) {
+        return;
+      }
+    }
+
+    const currentIndex = templates.findIndex(t => t.id === editorTemplate.id);
+    if (currentIndex === -1) return;
+
+    let newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
+
+    // Wrap around logic
+    if (newIndex < 0) newIndex = templates.length - 1;
+    if (newIndex >= templates.length) newIndex = 0;
+
+    const nextTemplate = templates[newIndex];
+    handleEnterEditMode(nextTemplate);
+  };
+
   const getPreviewSrcDoc = (html: string) => {
     const safeHtml = html.replace(/`/g, '\\`');
     return `
@@ -211,6 +234,26 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                     >
                       <ArrowLeft size={20} />
                     </button>
+                    
+                    {/* Navigation Buttons */}
+                    <div className="flex items-center gap-1 bg-dark-800/50 p-1 rounded-lg border border-dark-700">
+                        <button 
+                          onClick={() => handleNavigate('prev')}
+                          className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"
+                          title="Previous Template"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <div className="w-px h-4 bg-dark-700"></div>
+                        <button 
+                          onClick={() => handleNavigate('next')}
+                          className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"
+                          title="Next Template"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                    </div>
+
                     <div>
                       <h2 className="text-lg font-bold text-white flex items-center gap-2">
                         Editing <span className="text-brand-400">{editorTemplate.name}</span>
@@ -351,7 +394,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm p-2">
                            <button 
                              onClick={(e) => handleSelect(e, template)}
-                             className="flex items-center justify-center gap-1 px-3 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-500 transition-colors shadow-lg w-full"
+                             className="flex items-center justify-center gap-1 px-4 py-2 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-500 transition-colors shadow-lg w-auto"
                            >
                              Use
                            </button>
@@ -360,10 +403,10 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                                e.stopPropagation();
                                handleEnterEditMode(template);
                              }}
-                             className="p-1.5 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors shadow-lg"
+                             className="p-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors shadow-lg"
                              title="Edit Code"
                            >
-                             <Code size={14} />
+                             <Code size={16} />
                            </button>
                         </div>
                       </div>

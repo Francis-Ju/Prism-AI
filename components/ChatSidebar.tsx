@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library, PanelRight, ChevronUp } from 'lucide-react';
+import { Send, FileText, Sparkles, User, Loader2, Plus, Menu, ScanEye, LayoutTemplate, ChevronDown, Zap, BrainCircuit, ArrowRight, Library, PanelRight, Palette, Edit2, RefreshCw, X, Check, Brain } from 'lucide-react';
 import { ChatMessage, MessageRole, ModelType } from '../types';
 
 interface ChatSidebarProps {
@@ -15,6 +16,12 @@ interface ChatSidebarProps {
   onApplyTemplate: (templateId: string) => void;
   onShowArtifact: () => void;
   hasArtifact?: boolean;
+  currentTheme: 'prism' | 'novartis';
+  onToggleTheme: () => void;
+  onEditMessage: (messageId: string, newText: string) => void;
+  onRetry: () => void;
+  isThinkingEnabled: boolean;
+  onToggleThinking: () => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({ 
@@ -29,21 +36,33 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onOpenTemplates,
   onApplyTemplate,
   onShowArtifact,
-  hasArtifact
+  hasArtifact,
+  currentTheme,
+  onToggleTheme,
+  onEditMessage,
+  onRetry,
+  isThinkingEnabled,
+  onToggleThinking
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
+  
+  // Editing state
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isCentered]);
+    if (!editingMessageId) {
+      scrollToBottom();
+    }
+  }, [messages, isCentered, editingMessageId]);
 
   const handleSend = () => {
     if ((!inputValue.trim() && !selectedFile) || isProcessing) return;
@@ -66,6 +85,25 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   };
 
   const toggleModelMenu = () => setShowModelMenu(!showModelMenu);
+
+  // Edit Handlers
+  const startEditing = (msg: ChatMessage) => {
+    setEditingMessageId(msg.id);
+    setEditText(msg.text);
+  };
+
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setEditText('');
+  };
+
+  const saveEdit = (id: string) => {
+    if (editText.trim()) {
+      onEditMessage(id, editText);
+      setEditingMessageId(null);
+      setEditText('');
+    }
+  };
 
   // Refactored: Logic to separate outer container width from inner content width
   // When centered (Main view), outer container is w-full to let header span full width.
@@ -101,6 +139,15 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               </div>
             )}
          </div>
+
+         {/* Theme Toggle */}
+         <button 
+           onClick={onToggleTheme}
+           className="p-2 rounded-lg text-gray-400 hover:text-brand-400 hover:bg-dark-800 transition-colors"
+           title={`Switch to ${currentTheme === 'prism' ? 'Novartis' : 'Prism'} Theme`}
+         >
+           <Palette size={20} />
+         </button>
       </div>
 
       {/* Welcome Screen for Centered Mode */}
@@ -124,107 +171,164 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       <div className={messageListClasses}>
         {/* Content Wrapper for Centered Mode */}
         <div className={isCentered ? "max-w-3xl mx-auto space-y-8" : "space-y-6"}>
-          {messages.filter(m => !(isCentered && m.id === 'welcome')).map((msg) => (
-            <div key={msg.id} className={`flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'} animate-slide-up`}>
+          {messages.filter(m => !(isCentered && m.id === 'welcome')).map((msg, index) => (
+            <div key={msg.id} className={`group flex flex-col ${msg.role === MessageRole.USER ? 'items-end' : 'items-start'} animate-slide-up`}>
               <div className="flex items-center space-x-2 mb-2 px-1">
                 {msg.role === MessageRole.MODEL ? (
-                  <div className="w-6 h-6 rounded bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center shadow-md">
-                    <Sparkles size={12} className="text-white" />
+                  <div className={`w-6 h-6 rounded flex items-center justify-center shadow-md ${msg.isError ? 'bg-red-500/20 text-red-400' : 'bg-gradient-to-br from-brand-500 to-accent-500 text-white'}`}>
+                    <Sparkles size={12} />
                   </div>
                 ) : (
                   <div className="w-6 h-6 rounded bg-dark-700 flex items-center justify-center">
                     <User size={12} className="text-gray-400" />
                   </div>
                 )}
-                <span className="text-xs text-gray-500 uppercase font-medium tracking-wider">{msg.role === MessageRole.MODEL ? 'Prism' : 'You'}</span>
+                <span className={`text-xs uppercase font-medium tracking-wider ${msg.isError ? 'text-red-400' : 'text-gray-500'}`}>
+                  {msg.role === MessageRole.MODEL ? (msg.isError ? 'Error' : 'Prism') : 'You'}
+                </span>
               </div>
               
-              <div className={`max-w-[90%] md:max-w-[85%] rounded-2xl p-5 text-[15px] leading-relaxed shadow-lg backdrop-blur-sm ${
+              <div className={`max-w-[90%] md:max-w-[85%] rounded-2xl p-5 text-[15px] leading-relaxed shadow-lg backdrop-blur-sm relative ${
                 msg.role === MessageRole.USER 
                   ? 'bg-dark-800 text-white rounded-tr-none border border-dark-700' 
-                  : 'bg-dark-900/60 text-gray-200 rounded-tl-none border border-dark-800'
+                  : (msg.isError ? 'bg-red-950/30 border border-red-900/50 text-red-200 rounded-tl-none' : 'bg-dark-900/60 text-gray-200 rounded-tl-none border border-dark-800')
               }`}>
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="mb-4 p-3 bg-dark-950/50 rounded-xl border border-dark-700 flex items-center space-x-3">
-                    <div className="p-2 bg-brand-500/10 rounded-lg">
-                      <FileText size={18} className="text-brand-400" />
-                    </div>
-                    <span className="text-sm font-medium text-gray-300 truncate">{msg.attachments[0].name}</span>
-                  </div>
-                )}
-
-                {/* Thought Process Analysis Block */}
-                {msg.thoughtProcess && (
-                  <div className="mb-4 p-3 rounded-lg bg-dark-950/50 border border-dashed border-brand-500/30">
-                    <div className="flex items-center gap-2 mb-2 text-xs font-bold text-brand-400 uppercase tracking-wider">
-                      <ScanEye size={14} />
-                      <span>Prism Analysis</span>
-                    </div>
-                    <div className="text-sm text-gray-400 leading-relaxed italic">
-                      {msg.thoughtProcess}
-                    </div>
-                  </div>
-                )}
-
-                <p className="whitespace-pre-wrap">{msg.text}</p>
-
-                {/* Recommended Templates Cards */}
-                {msg.recommendedTemplates && msg.recommendedTemplates.length > 0 && (
-                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {msg.recommendedTemplates.map(t => (
-                      <div 
-                        key={t.id} 
-                        className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
-                        onClick={() => onApplyTemplate(t.id)}
+                
+                {/* Editing Mode */}
+                {editingMessageId === msg.id ? (
+                  <div className="w-full min-w-[300px]">
+                    <textarea 
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      className="w-full bg-dark-950 border border-brand-500/50 rounded-lg p-3 text-white text-[15px] focus:outline-none focus:ring-1 focus:ring-brand-500 resize-none"
+                      rows={Math.max(3, editText.split('\n').length)}
+                      autoFocus
+                    />
+                    <div className="flex items-center justify-end gap-2 mt-3">
+                      <button 
+                        onClick={cancelEditing}
+                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"
                       >
-                        <div className="flex items-center gap-3 mb-2">
-                           <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
-                             <LayoutTemplate size={16} />
-                           </div>
-                           <h4 className="font-semibold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{t.name}</h4>
-                        </div>
-                        <p className="text-xs text-gray-500 leading-relaxed mb-3 line-clamp-2">{t.description}</p>
-                        <button className="w-full py-2 bg-dark-800 hover:bg-brand-600 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                          <span>Use Template</span>
-                          <ArrowRight size={12} />
-                        </button>
-                      </div>
-                    ))}
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => saveEdit(msg.id)}
+                        className="px-3 py-1.5 text-xs bg-brand-600 hover:bg-brand-500 text-white rounded-md transition-colors font-medium flex items-center gap-1"
+                      >
+                        <Check size={12} /> Save & Submit
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    {/* Attachments */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mb-4 p-3 bg-dark-950/50 rounded-xl border border-dark-700 flex items-center space-x-3">
+                        <div className="p-2 bg-brand-500/10 rounded-lg">
+                          <FileText size={18} className="text-brand-400" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-300 truncate">{msg.attachments[0].name}</span>
+                      </div>
+                    )}
+
+                    {/* Thought Process Analysis Block */}
+                    {msg.thoughtProcess && (
+                      <div className="mb-4 p-3 rounded-lg bg-dark-950/50 border border-dashed border-brand-500/30">
+                        <div className="flex items-center gap-2 mb-2 text-xs font-bold text-brand-400 uppercase tracking-wider">
+                          <ScanEye size={14} />
+                          <span>Prism Analysis</span>
+                        </div>
+                        <div className="text-sm text-gray-400 leading-relaxed italic">
+                          {msg.thoughtProcess}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+
+                    {/* Recommended Templates Cards */}
+                    {msg.recommendedTemplates && msg.recommendedTemplates.length > 0 && (
+                      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {msg.recommendedTemplates.map(t => (
+                          <div 
+                            key={t.id} 
+                            className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
+                            onClick={() => onApplyTemplate(t.id)}
+                          >
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+                                <LayoutTemplate size={16} />
+                              </div>
+                              <h4 className="font-semibold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{t.name}</h4>
+                            </div>
+                            <p className="text-xs text-gray-500 leading-relaxed mb-3 line-clamp-2">{t.description}</p>
+                            <button className="w-full py-2 bg-dark-800 hover:bg-brand-600 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                              <span>Use Template</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Artifact Preview Card */}
+                    {msg.artifactPreview && (
+                      <div 
+                        className="mt-4 relative overflow-hidden rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-900/20 to-dark-900/50 group cursor-pointer hover:border-brand-500/60 hover:from-brand-900/30 transition-all shadow-lg shadow-black/20" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShowArtifact();
+                        }}
+                      >
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50"></div>
+                        <div className="p-4 flex items-center justify-between relative z-10">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-dark-950/50 border border-brand-500/20 flex items-center justify-center text-brand-400 shadow-inner group-hover:scale-105 transition-transform duration-300">
+                                  <PanelRight size={22} />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-white text-[15px] group-hover:text-brand-300 transition-colors">
+                                  {msg.artifactPreview.title}
+                                </h4>
+                                <p className="text-xs text-gray-400 font-medium group-hover:text-gray-300 transition-colors">
+                                  {msg.artifactPreview.description}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-all duration-300">
+                              <ArrowRight size={16} />
+                            </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Icons (Hover only) */}
+                    {!isProcessing && (
+                      <div className={`absolute ${msg.role === MessageRole.USER ? '-left-10' : '-right-10'} top-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2`}>
+                        {msg.role === MessageRole.USER && (
+                          <button 
+                            onClick={() => startEditing(msg)}
+                            className="p-2 bg-dark-800 text-gray-400 hover:text-white hover:bg-dark-700 rounded-full shadow-lg border border-dark-700 transition-all"
+                            title="Edit message"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        )}
+                        
+                        {msg.role === MessageRole.MODEL && (msg.isError || index === messages.length - 1) && (
+                          <button 
+                            onClick={onRetry}
+                            className={`p-2 rounded-full shadow-lg border transition-all ${msg.isError ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500 hover:text-white' : 'bg-dark-800 text-gray-400 hover:text-brand-400 hover:bg-dark-700 border-dark-700'}`}
+                            title="Retry response"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* Artifact Preview Card (If explicitly generated) - Moved into message bubble */}
-                {msg.artifactPreview && (
-                  <div 
-                    className="mt-4 relative overflow-hidden rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-900/20 to-dark-900/50 group cursor-pointer hover:border-brand-500/60 hover:from-brand-900/30 transition-all shadow-lg shadow-black/20" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onShowArtifact();
-                    }}
-                  >
-                     {/* Decorative top line */}
-                     <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50"></div>
-                     
-                     <div className="p-4 flex items-center justify-between relative z-10">
-                        <div className="flex items-center gap-4">
-                           <div className="w-12 h-12 rounded-xl bg-dark-950/50 border border-brand-500/20 flex items-center justify-center text-brand-400 shadow-inner group-hover:scale-105 transition-transform duration-300">
-                              <PanelRight size={22} />
-                           </div>
-                           <div>
-                             <h4 className="font-bold text-white text-[15px] group-hover:text-brand-300 transition-colors">
-                               {msg.artifactPreview.title}
-                             </h4>
-                             <p className="text-xs text-gray-400 font-medium group-hover:text-gray-300 transition-colors">
-                               {msg.artifactPreview.description}
-                             </p>
-                           </div>
-                        </div>
-                        <div className="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-all duration-300">
-                           <ArrowRight size={16} />
-                        </div>
-                     </div>
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -299,7 +403,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                          onClick={toggleModelMenu}
                          title="Select Model"
                        >
-                          {selectedModel === 'gemini-2.5-flash' ? <Zap size={20} /> : <BrainCircuit size={20} />}
+                          <Sparkles size={16} />
                           <ChevronDown size={12} />
                        </button>
                        {showModelMenu && (
@@ -327,6 +431,15 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                          </div>
                        )}
                    </div>
+
+                   {/* Deep Thinking Toggle */}
+                   <button 
+                     onClick={onToggleThinking}
+                     className={`p-2 rounded-xl transition-colors ${isThinkingEnabled ? 'text-brand-400 bg-brand-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+                     title={isThinkingEnabled ? "Deep Thinking Enabled" : "Deep Thinking Disabled"}
+                   >
+                     <Brain size={18} />
+                   </button>
 
                    {/* Template Library Button */}
                    <button 

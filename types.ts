@@ -27,6 +27,7 @@ export interface ChatMessage {
     data: string; // Base64
   }[];
   isThinking?: boolean;
+  isError?: boolean;
   artifactPreview?: {
     title: string;
     description: string;

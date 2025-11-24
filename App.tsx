@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import ChatSidebar from './components/ChatSidebar';
 import PreviewArea from './components/PreviewArea';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-preview');
+  const [isThinkingEnabled, setIsThinkingEnabled] = useState(true);
   
   // --- UI State ---
   const [showArtifact, setShowArtifact] = useState(false);
@@ -346,11 +348,11 @@ const App: React.FC = () => {
 
     try {
       // Construct History correctly using stored base64 data for context
-      const historyForApi = updatedMessages.slice(0, -1).map(m => {
+      // EXCLUDE the last message we just added, as it's passed as 'prompt' to generateAgentResponse wrapper
+      const historyForApi = messages.map(m => {
         const parts: any[] = [];
         if (m.attachments && m.attachments.length > 0) {
           m.attachments.forEach(att => {
-            // Only re-send image/pdf data. Text files were already embedded in prompt text.
             if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
               parts.push({
                 inlineData: {
@@ -369,9 +371,14 @@ const App: React.FC = () => {
         };
       });
 
-      // Call Gemini Service with selected Model
-      // Pass inlineData explicitly for the CURRENT turn if it exists
-      const response = await generateAgentResponse(fullPrompt, historyForApi, inlineData, mimeType, selectedModel);
+      const response = await generateAgentResponse(
+        fullPrompt, 
+        historyForApi, 
+        inlineData, 
+        mimeType, 
+        selectedModel, 
+        isThinkingEnabled
+      );
 
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -379,12 +386,10 @@ const App: React.FC = () => {
         text: response.chatResponse,
         thoughtProcess: response.thoughtProcess,
         isThinking: false,
-        // If HTML was generated, add a preview card to the message
         artifactPreview: response.generatedHtml ? {
             title: "View Generated Artifact",
             description: "Click to expand the design panel"
         } : undefined,
-        // Map structured recommendation to message field
         recommendedTemplates: response.recommendedTemplates
       };
 
@@ -409,10 +414,210 @@ const App: React.FC = () => {
         id: Date.now().toString(),
         role: MessageRole.MODEL,
         text: "I encountered a glitch in the prism. Please try again.",
+        isError: true
       }]);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleEditMessage = async (messageId: string, newText: string) => {
+    // 1. Find the index of the message being edited
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    // 2. Truncate history: Keep everything BEFORE this message
+    const previousMessages = messages.slice(0, messageIndex);
+    
+    // 3. Create the updated user message
+    const originalMessage = messages[messageIndex];
+    const updatedMessage: ChatMessage = {
+      ...originalMessage,
+      text: newText,
+      // We keep attachments from original unless logic changes to allow removing them
+    };
+
+    // 4. Update UI immediately
+    const intermediateMessages = [...previousMessages, updatedMessage];
+    setMessages(intermediateMessages);
+    setIsProcessing(true);
+
+    // 5. Re-trigger generation
+    // We need to extract attachments from the edited message if they exist, to pass to API
+    let inlineData: string | undefined;
+    let mimeType: string | undefined;
+    let fullPrompt = newText;
+
+    if (updatedMessage.attachments && updatedMessage.attachments.length > 0) {
+        const att = updatedMessage.attachments[0];
+        // If it's text file, technically we should re-read it but here we assume 'text' in prompt was already enriched.
+        // If it was an image, we need to pass it again.
+        if (att.type.startsWith('image/') || att.type === 'application/pdf') {
+             inlineData = att.data;
+             mimeType = att.type;
+        }
+    }
+
+    try {
+        // Construct API history from previous messages
+        const historyForApi = previousMessages.map(m => {
+            const parts: any[] = [];
+            if (m.attachments && m.attachments.length > 0) {
+                m.attachments.forEach(att => {
+                    if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
+                        parts.push({ inlineData: { mimeType: att.type, data: att.data } });
+                    }
+                });
+            }
+            parts.push({ text: m.text });
+            return { role: m.role === MessageRole.USER ? 'user' : 'model', parts };
+        });
+
+        const response = await generateAgentResponse(
+            fullPrompt, 
+            historyForApi, 
+            inlineData, 
+            mimeType, 
+            selectedModel,
+            isThinkingEnabled
+        );
+
+        const aiMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: MessageRole.MODEL,
+            text: response.chatResponse,
+            thoughtProcess: response.thoughtProcess,
+            isThinking: false,
+            artifactPreview: response.generatedHtml ? {
+                title: "View Generated Artifact",
+                description: "Click to expand the design panel"
+            } : undefined,
+            recommendedTemplates: response.recommendedTemplates
+        };
+
+        const finalMessages = [...intermediateMessages, aiMessage];
+        setMessages(finalMessages);
+
+        let newArtifactState = undefined;
+        if (response.generatedHtml) {
+            newArtifactState = { ...contentState, html: response.generatedHtml! };
+            setContentState(newArtifactState);
+            setShowArtifact(true);
+        }
+        updateCurrentSession(finalMessages, newArtifactState);
+
+    } catch (error) {
+        console.error("Error generating response after edit:", error);
+        setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: MessageRole.MODEL,
+            text: "I encountered a glitch while regenerating. Please try again.",
+            isError: true
+        }]);
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const handleRetry = async () => {
+     // Find the last user message to resend
+     // We assume the error happened on the last model turn, so the last USER message is what we want.
+     // OR if the last message is an error model message, we look before it.
+     
+     const reversed = [...messages].reverse();
+     const lastUserMsg = reversed.find(m => m.role === MessageRole.USER);
+     
+     if (!lastUserMsg) return;
+
+     // If the very last message is an error message, remove it.
+     let currentHistory = [...messages];
+     if (currentHistory[currentHistory.length - 1].role === MessageRole.MODEL && currentHistory[currentHistory.length - 1].isError) {
+         currentHistory.pop();
+     }
+     
+     // But wait, if we want to "Retry", we usually want to regenerate the response to the *last user message*.
+     // So we should strip any model response that came AFTER that user message (if partial/error).
+     const lastUserIndex = currentHistory.findIndex(m => m.id === lastUserMsg.id);
+     if (lastUserIndex !== -1) {
+         currentHistory = currentHistory.slice(0, lastUserIndex + 1);
+     }
+     
+     // Set state to this clean history
+     setMessages(currentHistory);
+     setIsProcessing(true);
+
+     // Trigger generation
+     // Similar logic to edit: prompt is last user msg, history is everything before it
+     const historyMessages = currentHistory.slice(0, -1);
+     
+     let inlineData: string | undefined;
+     let mimeType: string | undefined;
+     
+     if (lastUserMsg.attachments && lastUserMsg.attachments.length > 0) {
+         const att = lastUserMsg.attachments[0];
+         if (att.type.startsWith('image/') || att.type === 'application/pdf') {
+             inlineData = att.data;
+             mimeType = att.type;
+         }
+     }
+
+     try {
+         const historyForApi = historyMessages.map(m => {
+            const parts: any[] = [];
+            if (m.attachments && m.attachments.length > 0) {
+                m.attachments.forEach(att => {
+                    if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
+                        parts.push({ inlineData: { mimeType: att.type, data: att.data } });
+                    }
+                });
+            }
+            parts.push({ text: m.text });
+            return { role: m.role === MessageRole.USER ? 'user' : 'model', parts };
+        });
+
+        const response = await generateAgentResponse(
+            lastUserMsg.text, 
+            historyForApi, 
+            inlineData, 
+            mimeType, 
+            selectedModel,
+            isThinkingEnabled
+        );
+
+        const aiMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: MessageRole.MODEL,
+            text: response.chatResponse,
+            thoughtProcess: response.thoughtProcess,
+            isThinking: false,
+            artifactPreview: response.generatedHtml ? {
+                title: "View Generated Artifact",
+                description: "Click to expand the design panel"
+            } : undefined,
+            recommendedTemplates: response.recommendedTemplates
+        };
+
+        const finalMessages = [...currentHistory, aiMessage];
+        setMessages(finalMessages);
+
+        let newArtifactState = undefined;
+        if (response.generatedHtml) {
+            newArtifactState = { ...contentState, html: response.generatedHtml! };
+            setContentState(newArtifactState);
+            setShowArtifact(true);
+        }
+        updateCurrentSession(finalMessages, newArtifactState);
+     } catch (error) {
+        console.error("Retry failed:", error);
+        setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: MessageRole.MODEL,
+            text: "Retry failed. Please try again.",
+            isError: true
+        }]);
+     } finally {
+        setIsProcessing(false);
+     }
   };
 
   if (!user) {
@@ -458,6 +663,10 @@ const App: React.FC = () => {
            hasArtifact={!!contentState.html}
            currentTheme={theme}
            onToggleTheme={toggleTheme}
+           onEditMessage={handleEditMessage}
+           onRetry={handleRetry}
+           isThinkingEnabled={isThinkingEnabled}
+           onToggleThinking={() => setIsThinkingEnabled(!isThinkingEnabled)}
         />
 
         {/* Preview Area */}

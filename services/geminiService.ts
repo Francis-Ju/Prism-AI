@@ -44,7 +44,8 @@ export const generateAgentResponse = async (
   history: { role: string; parts: any[] }[],
   inlineData?: string,
   mimeType?: string,
-  modelName: string = 'gemini-3-pro-preview'
+  modelName: string = 'gemini-3-pro-preview',
+  useThinking: boolean = true
 ) => {
   try {
     // Construct contents
@@ -68,6 +69,11 @@ export const generateAgentResponse = async (
       description: t.description,
       category: t.category
     }));
+
+    // Configure thinking budget. 
+    // Default to a reasonable budget (e.g. 12k tokens) if enabled. 0 if disabled.
+    // Max for Pro 3 is 32k, Flash 2.5 is 24k.
+    const thinkingBudget = useThinking ? 12288 : 0;
 
     const response = await ai.models.generateContent({
       model: modelName,
@@ -120,6 +126,7 @@ export const generateAgentResponse = async (
         `,
         responseMimeType: "application/json",
         responseSchema: contentGenerationSchema,
+        thinkingConfig: { thinkingBudget },
         temperature: 0.7, 
       }
     });
