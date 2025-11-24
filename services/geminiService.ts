@@ -71,20 +71,11 @@ export const generateAgentResponse = async (
     }));
 
     // Configure thinking budget. 
-    // Default to a reasonable budget (e.g. 12k tokens) if enabled. 0 if disabled.
-    // Max for Pro 3 is 32k, Flash 2.5 is 24k.
+    // Default to a reasonable budget (e.g. 12k tokens) if enabled.
+    // If disabled, we omit the config entirely to avoid "Budget 0 is invalid" error on models that enforce thinking.
     const thinkingBudget = useThinking ? 12288 : 0;
 
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [
-        ...history, 
-        {
-          role: 'user',
-          parts: currentParts
-        }
-      ],
-      config: {
+    const config: any = {
         systemInstruction: `
         You are Prism, an elite Design Intelligence Agent for **Novartis**. Your goal is to transform pharmaceutical concepts into high-end, responsive digital artifacts.
 
@@ -126,9 +117,23 @@ export const generateAgentResponse = async (
         `,
         responseMimeType: "application/json",
         responseSchema: contentGenerationSchema,
-        thinkingConfig: { thinkingBudget },
         temperature: 0.7, 
-      }
+    };
+
+    if (useThinking) {
+        config.thinkingConfig = { thinkingBudget };
+    }
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        ...history, 
+        {
+          role: 'user',
+          parts: currentParts
+        }
+      ],
+      config: config
     });
 
     let text = response.text;
