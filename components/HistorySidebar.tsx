@@ -46,7 +46,6 @@ const HistorySidebar: React.FC<HistorySidebarProps> = ({
             </div>
             <div className="flex flex-col">
                <span className="text-sm font-medium text-white leading-none mb-1">{user.username}</span>
-               <span className="text-[10px] text-gray-500 uppercase tracking-wider">Pro Plan</span>
             </div>
           </div>
           

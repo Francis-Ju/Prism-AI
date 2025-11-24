@@ -114,7 +114,7 @@ const App: React.FC = () => {
     const initialMessage: ChatMessage = {
         id: 'welcome',
         role: MessageRole.MODEL,
-        text: "Welcome to Prism. I am your design intelligence agent.\n\nI can analyze documents or help you create stunning visual artifacts. How can I help you today?",
+        text: "欢迎来到Prism，我是您的设计智能代理。我可以分析文档，也可以帮您创建精美的视觉生产。今天我能为您提供什么帮助呢?",
     };
 
     const newSession: ChatSession = {

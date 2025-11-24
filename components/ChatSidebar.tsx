@@ -160,10 +160,10 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                <Sparkles className="w-8 h-8 text-white" />
              </div>
              <h1 className="text-4xl md:text-5xl font-display font-bold text-center text-white">
-               What shall we <span className="text-gradient">design</span> today?
+               今天我们可以 <span className="text-gradient">设计</span> 些什么?
              </h1>
              <p className="text-gray-400 text-lg text-center max-w-md">
-               Upload a document to analyze or describe a vision to generate an interactive artifact.
+               上传文档以进行分析，或描述需求愿景以生成长图文。
              </p>
            </div>
         </div>
@@ -238,7 +238,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       <div className="mb-4 p-3 rounded-lg bg-dark-950/50 border border-dashed border-brand-500/30">
                         <div className="flex items-center gap-2 mb-2 text-xs font-bold text-brand-400 uppercase tracking-wider">
                           <ScanEye size={14} />
-                          <span>Prism Analysis</span>
+                          <span>Prism 分析</span>
                         </div>
                         <div className="text-sm text-gray-400 leading-relaxed italic">
                           {msg.thoughtProcess}
@@ -478,7 +478,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           </div>
           {isCentered && (
              <p className="mt-4 text-center text-xs text-gray-600">
-               Prism can make mistakes. Review generated artifacts.
+               Prism可能会有错误，仔细阅读生成的结果。
              </p>
           )}
         </div>
