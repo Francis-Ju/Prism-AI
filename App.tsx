@@ -438,20 +438,21 @@ const App: React.FC = () => {
       // Construct History correctly using stored base64 data for context
       // EXCLUDE the last message we just added, as it's passed as 'prompt' to generateAgentResponse wrapper
       const historyForApi = messages.map((m, index) => {
-        // MEMORY OPTIMIZATION:
-        // Do not send heavy base64 data for messages older than the last 2 turns
-        // (User + Model = 1 turn. So last 4 messages approx).
-        // This prevents the request payload from ballooning to 100MB+ causing OOM crashes.
-        const isRecent = index >= messages.length - 2; 
-
+        // MEMORY & STABILITY OPTIMIZATION:
+        // Do not send heavy base64 data for old messages. 
+        // Only keep 'Heavy' attachments (> 200KB) if they are from the IMMEDIATE previous turn (index == last).
+        // This prevents the request payload from ballooning to 50MB+ causing XHR/500 crashes.
+        
+        const isLastMessage = index === messages.length - 1;
+        
         const parts: any[] = [];
         if (m.attachments && m.attachments.length > 0) {
           m.attachments.forEach(att => {
-             // Only include inlineData if it's recent OR if it's small (< 500KB)
-             const isSmall = att.data.length < 500 * 1024;
+             // Only include inlineData if it's the most recent interaction OR if it's very small (< 200KB)
+             const isSmall = att.data.length < 200 * 1024;
              
              if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
-                if (isRecent || isSmall) {
+                if (isLastMessage || isSmall) {
                    parts.push({
                      inlineData: {
                        mimeType: att.type,
@@ -459,7 +460,7 @@ const App: React.FC = () => {
                      }
                    });
                 } else {
-                   // Pruned marker to save memory
+                   // Pruned marker to save memory and prevent XHR crashes
                    parts.push({ text: `[System: Attachment ${att.name} pruned to save memory. Refer to previous analysis.]` });
                 }
              }
@@ -510,12 +511,23 @@ const App: React.FC = () => {
       // Use the stable activeSessionId here
       updateCurrentSession(finalMessages, activeSessionId, newArtifactState);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating response:", error);
+      
+      let errorText = "I encountered a glitch in the prism. Please try again.";
+      // Customize error message for better UX
+      if (error.message?.includes('401') || error.status === 401) {
+          errorText = "Authentication failed. The API Key may be invalid.";
+      } else if (error.message?.includes('500') || error.status === 500 || error.message?.includes('xhr')) {
+          errorText = "Connection error. The document might be too large or the server is momentarily overloaded. I have already tried retrying, but please try uploading a smaller file or trying again in a moment.";
+      } else if (error.message?.includes('429')) {
+          errorText = "We are sending requests too quickly. Please wait a moment.";
+      }
+
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
         role: MessageRole.MODEL,
-        text: "I encountered a glitch in the prism (API Error). Please try again. If this persists, check your API Key.",
+        text: errorText,
         isError: true
       };
       
@@ -569,13 +581,13 @@ const App: React.FC = () => {
         // Construct API history from previous messages
         // Apply pruning logic here as well
         const historyForApi = previousMessages.map((m, index) => {
-            const isRecent = index >= previousMessages.length - 2;
+            const isLastMessage = index === previousMessages.length - 1;
             const parts: any[] = [];
             if (m.attachments && m.attachments.length > 0) {
                 m.attachments.forEach(att => {
-                    const isSmall = att.data.length < 500 * 1024;
+                    const isSmall = att.data.length < 200 * 1024;
                     if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
-                        if (isRecent || isSmall) {
+                        if (isLastMessage || isSmall) {
                             parts.push({ inlineData: { mimeType: att.type, data: att.data } });
                         } else {
                             parts.push({ text: `[Attachment pruned]` });
@@ -619,12 +631,18 @@ const App: React.FC = () => {
         // Pass currentSessionId explicitly
         updateCurrentSession(finalMessages, currentSessionId, newArtifactState);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error generating response after edit:", error);
+        
+        let errorText = "I encountered a glitch while regenerating. Please try again.";
+        if (error.message?.includes('500') || error.message?.includes('xhr')) {
+             errorText = "Connection error. The content might be too large. Please try again.";
+        }
+
         const errorMessage: ChatMessage = {
             id: Date.now().toString(),
             role: MessageRole.MODEL,
-            text: "I encountered a glitch while regenerating. Please try again.",
+            text: errorText,
             isError: true
         };
         const finalMessages = [...intermediateMessages, errorMessage];
@@ -674,13 +692,13 @@ const App: React.FC = () => {
          }
 
          const historyForApi = historyMessages.map((m, index) => {
-            const isRecent = index >= historyMessages.length - 2;
+            const isLastMessage = index === historyMessages.length - 1;
             const parts: any[] = [];
             if (m.attachments && m.attachments.length > 0) {
                 m.attachments.forEach(att => {
-                    const isSmall = att.data.length < 500 * 1024;
+                    const isSmall = att.data.length < 200 * 1024;
                     if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
-                         if (isRecent || isSmall) {
+                         if (isLastMessage || isSmall) {
                             parts.push({ inlineData: { mimeType: att.type, data: att.data } });
                         } else {
                             parts.push({ text: `[Attachment pruned]` });
@@ -723,12 +741,18 @@ const App: React.FC = () => {
         
         // Pass currentSessionId explicitly
         updateCurrentSession(finalMessages, currentSessionId, newArtifactState);
-     } catch (error) {
+     } catch (error: any) {
         console.error("Retry failed:", error);
+        
+        let errorText = "Retry failed. Please try again.";
+        if (error.message?.includes('500') || error.message?.includes('xhr')) {
+             errorText = "Connection error. The server is overwhelmed or content is too large.";
+        }
+
         const errorMessage: ChatMessage = {
             id: Date.now().toString(),
             role: MessageRole.MODEL,
-            text: "Retry failed. Please try again.",
+            text: errorText,
             isError: true
         };
         const finalMessages = [...currentHistory, errorMessage];

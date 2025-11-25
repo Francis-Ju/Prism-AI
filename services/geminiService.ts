@@ -8,29 +8,176 @@ const contentGenerationSchema: Schema = {
   properties: {
     thoughtProcess: {
       type: Type.STRING,
-      description: "Detailed analysis of the request. Identify key medical/pharma data points, compliance requirements, and visual strategy. If a document is provided, explicitly mention what was extracted. The language used in this thinking process should be output in Chinese.",
+      description: `
+          Conduct in-depth analysis of medical/pharma content, output in Markdown format:
+
+            ## 📋 Analysis Dimensions
+
+            ### 1 Medical/Pharmaceutical Data
+            - Drug Information: Name, composition, specifications, dosage form
+            - Clinical Data: Efficacy, safety, trial results  
+            - Indications: Treatment scope, target population
+            - Medication Guidance: Dosage, usage, duration
+
+            ### 2 Compliance Requirements
+            - Regulatory Standards: NMPA/FDA requirements
+            - Approval Status: Approval numbers, registration information
+            - Risk Management: Contraindications, adverse reactions, warnings
+            - Labeling Standards: Mandatory package insert elements
+
+            ### 3️ Visual Strategy
+            - Chart Selection: Tables/flowcharts/comparison charts/data visualization
+            - Information Hierarchy: Priority design for key content
+            - Design Style: Professional pharmaceutical style recommendations
+            - Compliance Display: Methods for highlighting risk information
+
+            ## Document Processing
+            If document provided, specify:
+            - **Document**: [Name and type]
+            - **Extracted**: [Core content list]
+            - **Key Points**: [Critical data points]
+
+            ---
+            ✓ Chinese Output | ✓ Markdown Format | ✓ Clear Structure | ✓ Professional Accuracy
+          `,
     },
     chatResponse: {
       type: Type.STRING,
-      description: "Professional conversational response in Chinese.",
+      description:`
+          Respond in professional yet accessible Chinese:
+          - Medical/pharmaceutical terminology must be accurate
+          - Expression style close to real work scenarios
+          - Balance professionalism with approachability
+          - Communicate like a senior product manager or pharmaceutical consultant
+          - Avoid textbook-style rigid language
+          - The output format should adopt the Markdown format
+          `,
     },
     generatedArtifacts: {
       type: Type.ARRAY,
-      description: "A list of 3 to 4 distinct design options/variations. Provide diverse visual styles and structures for the same content. Each HTML must be Mobile-First Tailwind CSS.",
+      description: `
+          Generate 4+ design variations tailored for pharmaceutical/medical content:
+          
+          [Design Options Required]
+          Minimum 4 distinct designs, each optimized for different contexts:
+
+          Option 1: CLINICAL/PROFESSIONAL
+          - Audience: Healthcare professionals, regulatory bodies
+          - Style: Clean, authoritative, data-focused
+          - Layout: Structured sections, clear information hierarchy
+          - Colors: Medical blues, whites, trust-building palette
+
+          Option 2: PATIENT-FRIENDLY
+          - Audience: Patients, caregivers, general public
+          - Style: Warm, accessible, supportive
+          - Layout: Simple navigation, digestible content blocks
+          - Colors: Soft, approachable, calming tones
+
+          Option 3: CORPORATE/INVESTOR
+          - Audience: Stakeholders, partners, investors
+          - Style: Professional, polished, business-oriented
+          - Layout: Dashboard-inspired, metrics-forward
+          - Colors: Corporate blues/grays, confident aesthetics
+
+          Option 4: MODERN DIGITAL HEALTH
+          - Audience: Tech-savvy consumers, digital health users
+          - Style: Contemporary, app-like, innovative
+          - Layout: Card-based, mobile-app inspired
+          - Colors: Fresh, modern, gradient accents
+
+          [Content Adaptation]
+          Same medical/pharma information presented with:
+          - Different emphasis (clinical data vs. patient benefits)
+          - Varied terminology depth (technical vs. simplified)
+          - Adjusted visual hierarchy (compliance-first vs. engagement-first)
+
+          [Technical Standards]
+          - Mobile-First responsive (critical for patient access)
+          - Tailwind CSS implementation
+          - Accessibility compliance considerations
+          - Clear information architecture for each audience
+      `
+      ,
       items: {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
           title: { type: Type.STRING, description: "Short title for this design variation" },
           description: { type: Type.STRING, description: "Brief description of the style/focus." },
-          htmlContent: { type: Type.STRING, description: "Complete, valid HTML string using Tailwind CSS. CRITICAL: MUST be Mobile-First. The content MUST be LONG-FORM and comprehensive (like a full landing page or detailed report), avoiding brevity. Include at least 5-6 distinct sections. Use #F16F20 for accents. Do not include <html>/<body> tags." }
+          htmlContent: { type: Type.STRING, description: `
+              Generate a complete, production-ready HTML page using Tailwind CSS:
+
+              [Core Requirements]
+              ✓ Mobile-First Design: Base styles for mobile, progressive enhancement for tablet/desktop
+              ✓ Framework: Tailwind CSS utility classes only
+              ✓ Brand Color: #F16F20 for primary actions, accents, and key highlights
+              ✓ Output: Pure HTML fragment (no <html>/<head>/<body> wrapper tags)
+
+              [Content Specifications]
+              ✓ Format: LONG-FORM, comprehensive content (not brief summaries)
+              ✓ Structure: Minimum 5-6 substantial sections, each with:
+                - Descriptive heading
+                - Rich, detailed content (paragraphs, lists, data points)
+                - Visual elements where appropriate
+              ✓ Length: Full landing page depth - think product launch, annual report, or detailed guide
+              ✓ Quality: Professional copy with real value, avoid generic placeholders
+
+              [Responsive Strategy]
+              - Base: Mobile layout (320px-640px)
+              - sm: Small tablets (640px+)
+              - md: Tablets/small laptops (768px+)
+              - lg: Desktops (1024px+)
+              - xl: Large screens (1280px+)
+
+              [Design Standards]
+              - Typography: Clear hierarchy (text-4xl/3xl/2xl/xl/lg)
+              - Spacing: Generous padding/margins (p-6, p-8, py-12, etc.)
+              - Layout: Flexible containers (max-w-7xl, mx-auto)
+              - Interactivity: Hover states, smooth transitions
+          `
+          }
         },
         required: ["id", "title", "description", "htmlContent"]
       }
     },
     recommendedTemplates: {
       type: Type.ARRAY,
-      description: "Recommended templates based on the user's intent.",
+      description: `
+        [Autonomous Template & Generation Strategy]
+
+        You have full flexibility to determine the best approach:
+
+        Option 1: Template-Based Generation
+        ────────────────────────────────────
+        When to use: Relevant, high-quality templates exist
+        - Search template library
+        - Recommend best matches with clear reasoning
+        - Generate based on selected template
+
+        Option 2: Custom Generation
+        ────────────────────────────────────
+        When to use: No suitable templates OR custom approach is better
+        - Skip template recommendation without explanation
+        - Choose optimal generation method:
+          * Structured documents
+          * Visual designs (HTML/CSS)
+          * Data visualizations
+          * Hybrid custom solutions
+        - Generate directly based on user requirements
+
+        Decision Authority:
+        ✓ You decide whether to use templates or generate custom
+        ✓ No need to justify skipping templates
+        ✓ Prioritize output quality over process
+        ✓ Adapt approach based on:
+          - Content complexity
+          - User expertise level
+          - Industry requirements
+          - Time/detail constraints
+
+        Execution Principle:
+        "Use templates when they add value. Generate custom solutions when they serve better. Never force-fit inadequate templates."
+      `,
       items: {
         type: Type.OBJECT,
         properties: {
@@ -54,10 +201,7 @@ export const generateAgentResponse = async (
   useThinking: boolean = true
 ) => {
   try {
-    // Initialize the client inside the function to ensure process.env.API_KEY is available
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-    // Construct contents
+    // Construct contents once
     const currentParts: any[] = [];
     
     if (inlineData && mimeType) {
@@ -265,22 +409,52 @@ export const generateAgentResponse = async (
         temperature: 0.7, 
     };
 
-    // Note: thinkingConfig is deliberately removed here because it is currently incompatible
-    // with responseMimeType: "application/json" on some backend endpoints, causing 500 errors.
-    // We rely on the thoughtProcess field in the JSON schema for reasoning.
-
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: [
-        ...history, 
-        {
-          role: 'user',
-          parts: currentParts
+    // Retry Loop for robustness against transient 500/XHR errors
+    const makeRequest = async (retries = 3, delay = 1000): Promise<any> => {
+      try {
+        // Initialize the client inside the function to ensure process.env.API_KEY is available
+        // This fixes the "Request had invalid authentication credentials" (401) error 
+        // by ensuring we don't read the env var before it's ready.
+        if (!process.env.API_KEY) {
+           console.warn("API_KEY is missing from environment variables.");
         }
-      ],
-      config: config
-    });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        return await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            ...history, 
+            {
+              role: 'user',
+              parts: currentParts
+            }
+          ],
+          config: config
+        });
+      } catch (error: any) {
+        // Check for retryable errors (500, 503, XHR failed, fetch failed)
+        const status = error.status || error.response?.status || 0;
+        const msg = (error.message || '').toLowerCase();
+        
+        const isRetryable = 
+          status === 503 || 
+          status === 500 || 
+          msg.includes("xhr") || 
+          msg.includes("fetch failed") ||
+          msg.includes("overloaded") || 
+          msg.includes("network");
 
+        if (isRetryable && retries > 0) {
+          console.warn(`Gemini API Error (Status ${status}). Retrying in ${delay}ms...`, error);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return makeRequest(retries - 1, delay * 2); // Exponential backoff
+        }
+        
+        throw error;
+      }
+    };
+
+    const response = await makeRequest();
     let text = response.text || "";
 
     // If text is empty, return a safe default error instead of crashing on JSON parse
