@@ -30,10 +30,10 @@
             },
             colors: {
               dark: {
-                950: '#09090b', // Richer black
-                900: '#18181b',
-                800: '#27272a',
-                700: '#3f3f46',
+                950: 'rgb(var(--bg-950) / <alpha-value>)',
+                900: 'rgb(var(--bg-900) / <alpha-value>)',
+                800: 'rgb(var(--bg-800) / <alpha-value>)',
+                700: 'rgb(var(--bg-700) / <alpha-value>)',
               },
               brand: {
                 400: 'rgb(var(--brand-400) / <alpha-value>)',
@@ -51,73 +51,99 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <style>
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+      :root {
+        /* Dark Theme (Prism) - Default */
+        --bg-950: 9 9 11;       /* zinc-950 */
+        --bg-900: 24 24 27;     /* zinc-900 */
+        --bg-800: 39 39 42;     /* zinc-800 */
+        --bg-700: 63 63 70;     /* zinc-700 */
+        
+        --brand-400: 167 139 250; /* violet-400 */
+        --brand-500: 139 92 246;  /* violet-500 */
+        --brand-600: 124 58 237;  /* violet-600 */
+        
+        --accent-500: 236 72 153; /* pink-500 */
       }
-      ::-webkit-scrollbar-track {
-        background: transparent;
+
+      /* Light Theme (Novartis) */
+      .theme-novartis {
+        --bg-950: 255 255 255;  /* white */
+        --bg-900: 241 245 249;  /* slate-100 */
+        --bg-800: 226 232 240;  /* slate-200 */
+        --bg-700: 203 213 225;  /* slate-300 */
+        
+        --brand-400: 249 115 22; /* orange-500 */
+        --brand-500: 241 111 32; /* Novartis Orange #F16F20 */
+        --brand-600: 194 65 12;  /* orange-700 */
+        
+        --accent-500: 15 118 110; /* teal-700 */
       }
-      ::-webkit-scrollbar-thumb {
-        background: #3f3f46;
-        border-radius: 3px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #52525b;
+
+      /* Base Transitions */
+      body { transition: color 0.3s, background-color 0.3s; }
+      .transition-colors { transition-duration: 300ms; }
+
+      /* Light Theme Text Overrides - Inverting 'Dark Mode' classes */
+      .theme-novartis .text-white { color: #1e293b !important; } /* slate-800 */
+      .theme-novartis .text-gray-200 { color: #334155 !important; } /* slate-700 */
+      .theme-novartis .text-gray-300 { color: #475569 !important; } /* slate-600 */
+      .theme-novartis .text-gray-400 { color: #64748b !important; } /* slate-500 */
+      .theme-novartis .text-gray-500 { color: #94a3b8 !important; } /* slate-400 */
+      
+      /* Specific UI Tweaks for Light Mode */
+      .theme-novartis input, 
+      .theme-novartis textarea {
+        background-color: #f8fafc !important; /* slate-50 */
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
       }
       
-      :root {
-        /* Prism Default (Purple) */
-        --brand-400: 167 139 250;
-        --brand-500: 139 92 246;
-        --brand-600: 124 58 237;
-        --accent-500: 244 114 182;
+      .theme-novartis input::placeholder,
+      .theme-novartis textarea::placeholder {
+        color: #94a3b8 !important;
       }
 
-      .theme-novartis {
-        /* Novartis (Orange) */
-        --brand-400: 253 186 116; /* Orange-300 */
-        --brand-500: 241 111 32;  /* #F16F20 */
-        --brand-600: 194 65 12;   /* Orange-700 */
-        --accent-500: 14 165 233; /* Sky-500 */
+      .theme-novartis .border-dark-700, 
+      .theme-novartis .border-dark-800 {
+        border-color: #cbd5e1 !important; /* slate-300 */
       }
 
-      body {
-        background-color: #09090b;
-        color: #e4e4e7;
-        font-family: 'Inter', sans-serif;
-      }
-      .glass-panel {
-        background: rgba(24, 24, 27, 0.7);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-      }
+      /* Gradients */
       .text-gradient {
-        background: linear-gradient(to right, rgb(var(--brand-400)), rgb(var(--accent-500)));
+        background: linear-gradient(to right, rgb(var(--brand-500)), rgb(var(--accent-500)));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
       }
+      
+      /* Dots Pattern */
       .bg-dots-pattern {
-        background-image: radial-gradient(rgba(63, 63, 70, 0.4) 1px, transparent 1px);
-        background-size: 24px 24px;
+        background-image: radial-gradient(rgb(var(--bg-700) / 0.2) 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
+
+      /* Scrollbar */
+      .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "html2canvas": "https://esm.sh/html2canvas@1.4.1"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "snapdom": "https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/+esm"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

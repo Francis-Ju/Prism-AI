@@ -12,7 +12,7 @@ const contentGenerationSchema: Schema = {
   properties: {
     thoughtProcess: {
       type: Type.STRING,
-      description: "Detailed analysis of the request. Identify key medical/pharma data points, compliance requirements, and visual strategy. If a document is provided, explicitly mention what was extracted.The language used in this thinking process should be output in Chinese.",
+      description: "Detailed analysis of the request. Identify key medical/pharma data points, compliance requirements, and visual strategy. If a document is provided, explicitly mention what was extracted. The language used in this thinking process should be output in Chinese.",
     },
     chatResponse: {
       type: Type.STRING,
@@ -20,14 +20,14 @@ const contentGenerationSchema: Schema = {
     },
     generatedArtifacts: {
       type: Type.ARRAY,
-      description: "A list of 1 to 2 distinct design options/variations. If the user request is specific, provide 1 option. If open-ended, provide 2 variations. Each HTML must be Mobile-First Tailwind CSS.",
+      description: "A list of 3 to 4 distinct design options/variations. Provide diverse visual styles and structures for the same content. Each HTML must be Mobile-First Tailwind CSS.",
       items: {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
           title: { type: Type.STRING, description: "Short title for this design variation" },
           description: { type: Type.STRING, description: "Brief description of the style/focus." },
-          htmlContent: { type: Type.STRING, description: "Complete, valid HTML string using Tailwind CSS. CRITICAL: MUST be Mobile-First. Use #F16F20 for accents. Do not include <html>/<body> tags." }
+          htmlContent: { type: Type.STRING, description: "Complete, valid HTML string using Tailwind CSS. CRITICAL: MUST be Mobile-First. The content MUST be LONG-FORM and comprehensive (like a full landing page or detailed report), avoiding brevity. Include at least 5-6 distinct sections. Use #F16F20 for accents. Do not include <html>/<body> tags." }
         },
         required: ["id", "title", "description", "htmlContent"]
       }
@@ -80,10 +80,7 @@ export const generateAgentResponse = async (
       category: t.category
     }));
 
-    const thinkingBudget = useThinking ? 12288 : 0;
-
-    const config: any = {
-        systemInstruction: `
+    let systemInstruction = `
         You are **Prism**, an elite Design Intelligence Agent specializing in pharmaceutical digital experiences for **Novartis**. Your mission is to transform complex medical concepts into compelling, evidence-based, responsive HTML artifacts that embody scientific rigor and human-centric design.The generated results must be output in Chinese.
 
         ═══════════════════════════════════════════════════════════════
@@ -197,27 +194,17 @@ export const generateAgentResponse = async (
         - **Primary Goal**: Inform? Persuade? Educate?
         - **Hero Moment**: What's the ONE key takeaway?
 
-        ### Step 3: DESIGN Structure
-        **Standard Architecture**:
-        1. HERO SECTION
-          └─ Bold headline, subtitle, visual anchor
-          └─ 1-2 sentence value proposition
-
-        2. KEY DATA SECTION
-          └─ 2-4 primary metrics in stat grid
-          └─ Visual hierarchy: largest stat = most important
-
-        3. EVIDENCE SECTION
-          └─ Charts/bars showing efficacy
-          └─ Clinical trial references
-
-        4. DETAILED INFORMATION
-          └─ Mechanism of action, dosing, patient profiles
-          └─ Use accordions/tabs for complex info
-
-        5. SAFETY & REFERENCES
-          └─ Abbreviated prescribing info
-          └─ Study citations with links
+        ### Step 3: DESIGN Structure (LONG-FORM REQUIRED)
+        
+        **CRITICAL**: You must generate **LONG-FORM** content. Do not produce short summaries. Each artifact should be a comprehensive "Deep Scroll" experience (think Landing Page or Detailed Report).
+        
+        **Standard Architecture (Must include ALL 6 sections)**:
+        1. **HERO SECTION**: High impact visual, bold headline, primary value prop.
+        2. **KEY HIGHLIGHTS**: 3-4 primary metrics in a grid or visually distinct cards.
+        3. **DETAILED EFFICACY**: Deep dive into the data. Use multiple charts/bars. Explain the study design.
+        4. **MECHANISM / SCIENCE**: Detailed explanation of how it works (MOA), possibly with step-by-step visuals.
+        5. **PATIENT / SAFETY PROFILE**: Comprehensive safety info, patient types, or dosing schedules.
+        6. **FOOTER & REFERENCES**: Full list of citations and standard footer elements.
 
         ### Step 4: OUTPUT Format
         Return **valid JSON**:
@@ -237,24 +224,22 @@ export const generateAgentResponse = async (
         ## QUALITY STANDARDS
 
         Before finalizing, verify:
+        - [ ] **LENGTH CHECK**: Is the content long enough? (Aim for 1000+ words equivalent in visual structure).
+        - [ ] **DEPTH CHECK**: Did I expand on the points or just list them? EXPAND them.
         - [ ] Novartis Orange (#F16F20) used for all key highlights
-        - [ ] At least 1 data visualization included
+        - [ ] At least 2-3 distinct data visualizations included
         - [ ] Mobile preview: no horizontal scroll at 375px
         - [ ] All stats have sources/footnotes
         - [ ] Typography hierarchy is clear (h1 → h2 → body)
         - [ ] Touch targets are minimum 44x44px
         - [ ] Contrast ratios meet WCAG AA (4.5:1 for body text)
-        - [ ] Images have alt text for accessibility
 
         ═══════════════════════════════════════════════════════════════
 
         ## EXAMPLE SCENARIOS
 
         **Input**: "Create a page for Kailylon showing superior PFS vs placebo"
-        **Output**: Single artifact with hero stat (44.2% reduction), side-by-side efficacy bars, MONALEESA trial timeline
-
-        **Input**: "Explain Kailylon's mechanism to patients"
-        **Output**: Two artifacts - (1) Simplified patient version with illustrations, (2) Detailed HCP version with molecular pathways
+        **Output**: A long-scrolling page starting with a Hero banner, followed by a 'Key Stats' grid, then a detailed 'Study Design' section, then a 'Kaplan-Meier' visualization section, followed by a 'Safety Profile' table, and concluding with references.
 
         ═══════════════════════════════════════════════════════════════
 
@@ -265,15 +250,23 @@ export const generateAgentResponse = async (
 
         **Context Templates**:
         ${JSON.stringify(templateContext)}
-        `,
+    `;
+
+    // Augment system instruction if reasoning is requested, instead of using incompatible thinkingConfig with JSON
+    if (useThinking) {
+      systemInstruction += `\n\n**CRITICAL INSTRUCTION**: Perform a deep, step-by-step analysis in the 'thoughtProcess' JSON field. Consider medical constraints, data accuracy, and visual strategy before generating the artifact HTML. Ensure the final HTML is DETAILED and LONG-FORM.`;
+    }
+
+    const config: any = {
+        systemInstruction: systemInstruction,
         responseMimeType: "application/json",
         responseSchema: contentGenerationSchema,
         temperature: 0.7, 
     };
 
-    if (useThinking) {
-        config.thinkingConfig = { thinkingBudget };
-    }
+    // Note: thinkingConfig is deliberately removed here because it is currently incompatible
+    // with responseMimeType: "application/json" on some backend endpoints, causing 500 errors.
+    // We rely on the thoughtProcess field in the JSON schema for reasoning.
 
     const response = await ai.models.generateContent({
       model: modelName,

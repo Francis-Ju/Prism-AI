@@ -146,7 +146,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
          <button 
            onClick={onToggleTheme}
            className="p-2 rounded-lg text-gray-400 hover:text-brand-400 hover:bg-dark-800 transition-colors"
-           title={`Switch to ${currentTheme === 'prism' ? 'Novartis' : 'Prism'} Theme`}
+           title={`Switch to ${currentTheme === 'prism' ? 'Light' : 'Dark'} Mode`}
          >
            <Palette size={20} />
          </button>
@@ -248,7 +248,38 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                     <p className="whitespace-pre-wrap">{msg.text}</p>
 
-                    {/* Artifact Options (Cards) */}
+                    {/* Recommended Templates Cards - Moved Above Generated Designs */}
+                    {msg.recommendedTemplates && msg.recommendedTemplates.length > 0 && (
+                      <div className="mt-5">
+                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-2">
+                            <Library size={14} />
+                            Suggested Templates
+                         </h4>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {msg.recommendedTemplates.map(t => (
+                              <div 
+                                key={t.id} 
+                                className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
+                                onClick={() => onApplyTemplate(t.id)}
+                              >
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+                                    <LayoutTemplate size={16} />
+                                  </div>
+                                  <h4 className="font-semibold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{t.name}</h4>
+                                </div>
+                                <p className="text-xs text-gray-500 leading-relaxed mb-3 line-clamp-2">{t.description}</p>
+                                <button className="w-full py-2 bg-dark-800 hover:bg-brand-600 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-2">
+                                  <span>Use Template</span>
+                                  <ArrowRight size={12} />
+                                </button>
+                              </div>
+                            ))}
+                         </div>
+                      </div>
+                    )}
+
+                    {/* Artifact Options (Cards) - Moved Below Suggested Templates */}
                     {msg.artifactOptions && msg.artifactOptions.length > 0 && (
                       <div className="mt-5 space-y-2">
                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
@@ -282,37 +313,6 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Recommended Templates Cards */}
-                    {msg.recommendedTemplates && msg.recommendedTemplates.length > 0 && (
-                      <div className="mt-5">
-                         <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 mb-2">
-                            <Library size={14} />
-                            Suggested Templates
-                         </h4>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {msg.recommendedTemplates.map(t => (
-                              <div 
-                                key={t.id} 
-                                className="bg-dark-950/80 border border-dark-700 rounded-xl p-4 hover:border-brand-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md hover:shadow-brand-900/20"
-                                onClick={() => onApplyTemplate(t.id)}
-                              >
-                                <div className="flex items-center gap-3 mb-2">
-                                  <div className="p-2 bg-brand-500/10 rounded-lg text-brand-400 group-hover:bg-brand-500 group-hover:text-white transition-colors">
-                                    <LayoutTemplate size={16} />
-                                  </div>
-                                  <h4 className="font-semibold text-gray-200 text-sm group-hover:text-brand-300 transition-colors">{t.name}</h4>
-                                </div>
-                                <p className="text-xs text-gray-500 leading-relaxed mb-3 line-clamp-2">{t.description}</p>
-                                <button className="w-full py-2 bg-dark-800 hover:bg-brand-600 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-2">
-                                  <span>Use Template</span>
-                                  <ArrowRight size={12} />
-                                </button>
-                              </div>
-                            ))}
-                         </div>
                       </div>
                     )}
 

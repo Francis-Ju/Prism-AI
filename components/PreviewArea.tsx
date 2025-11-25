@@ -2,7 +2,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Smartphone, Tablet, Monitor, X, Download, Loader2, Edit2, Image as ImageIcon, FileCode } from 'lucide-react';
 import { DeviceMode, GeneratedContentState } from '../types';
-import html2canvas from 'html2canvas';
+// @ts-ignore
+import * as snapdom from 'snapdom';
 
 interface PreviewAreaProps {
   htmlContent: string;
@@ -26,9 +27,58 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [fontCss, setFontCss] = useState<string>('');
 
   // Determine if we are currently in "Dark Mode" based on the background color
   const isDarkMode = backgroundColor === '#09090b';
+
+  // CSS Logic to force Dark Mode styles on standard Tailwind classes
+  const darkModeStyles = `
+    body { background-color: #09090b !important; color: #e4e4e7 !important; }
+    
+    /* Background Overrides */
+    .bg-white { background-color: #18181b !important; }
+    .bg-slate-50, .bg-gray-50, .bg-zinc-50 { background-color: #09090b !important; }
+    .bg-slate-100, .bg-gray-100 { background-color: #27272a !important; }
+    .bg-orange-50 { background-color: #2a1b12 !important; border-color: #431407 !important; }
+    .bg-blue-50 { background-color: #172554 !important; border-color: #1e3a8a !important; }
+    .bg-green-50 { background-color: #052e16 !important; border-color: #14532d !important; }
+    .bg-red-50 { background-color: #450a0a !important; border-color: #7f1d1d !important; }
+    
+    /* Text Overrides */
+    .text-slate-900, .text-gray-900, .text-zinc-900, .text-black { color: #f4f4f5 !important; }
+    .text-slate-800, .text-gray-800 { color: #e4e4e7 !important; }
+    .text-slate-700, .text-gray-700 { color: #d4d4d8 !important; }
+    .text-slate-600, .text-gray-600 { color: #a1a1aa !important; }
+    .text-slate-500, .text-gray-500 { color: #71717a !important; }
+    
+    /* Border Overrides */
+    .border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200 { border-color: #27272a !important; }
+    .border-white { border-color: #27272a !important; }
+    
+    /* Specific Element Fixes */
+    input { background-color: #27272a !important; color: white !important; border-color: #3f3f46 !important; }
+    .shadow-xl, .shadow-lg, .shadow-md { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important; }
+  `;
+
+  useEffect(() => {
+    // Attempt to fetch Google Fonts CSS to inline it.
+    // This prevents "SecurityError: Failed to read the 'cssRules' property" 
+    // when html-to-image tries to access cross-origin stylesheets.
+    const fetchFonts = async () => {
+        try {
+            const res = await fetch('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;700&display=swap');
+            if (res.ok) {
+                const text = await res.text();
+                setFontCss(text);
+            }
+        } catch (e) {
+            console.warn("Failed to fetch font CSS for inline embedding:", e);
+        }
+    };
+    fetchFonts();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -68,71 +118,104 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
   };
 
   const downloadImage = async () => {
-    if (iframeRef.current && iframeRef.current.contentDocument) {
+    if (iframeRef.current && iframeRef.current.contentDocument && iframeRef.current.contentWindow) {
+        setIsExporting(true);
         try {
             const iframe = iframeRef.current;
             const doc = iframe.contentDocument;
             const body = doc.body;
+            const html = doc.documentElement;
 
-            // Get exact render dimensions
-            const width = iframe.offsetWidth;
-            const height = doc.documentElement.scrollHeight;
+            // Wait for fonts to be ready before capturing, safely catching any errors
+            // to avoid bubbling up non-cloneable Event objects.
+            await doc.fonts.ready.catch((e: any) => {
+                console.warn("Fonts not fully ready:", e);
+            });
+
+            // Accurately calculate the full scrollable height
+            const height = Math.max(
+                body.scrollHeight, 
+                body.offsetHeight, 
+                html.clientHeight, 
+                html.scrollHeight, 
+                html.offsetHeight
+            );
             
-            const canvas = await html2canvas(body, {
-                useCORS: true, 
-                scale: 2, 
-                backgroundColor: contentState.backgroundColor || '#ffffff',
+            const width = iframe.offsetWidth;
+
+            // Use snapdom's toPng method
+            const dataUrl = await snapdom.toPng(body, {
+                quality: 1.0,
+                pixelRatio: 2, // High resolution
+                backgroundColor: contentState.backgroundColor,
                 width: width,
                 height: height,
-                windowWidth: width,
-                windowHeight: height,
-                logging: false,
-                scrollY: 0
+                style: {
+                   // Critical: Ensure the body renders at full height during capture
+                   height: `${height}px`,
+                   overflow: 'visible',
+                   maxHeight: 'none',
+                   transform: 'none',
+                },
+                // Robustness: Filter out any external link tags or scripts that might persist and cause CORS errors
+                filter: (node: any) => {
+                    const tagName = (node.tagName || '').toUpperCase();
+                    if (tagName === 'LINK') {
+                        return false;
+                    }
+                    if (tagName === 'SCRIPT' || tagName === 'IFRAME') {
+                        return false;
+                    }
+                    return true;
+                },
+                cacheBust: true,
             });
-            
+
             const link = document.createElement('a');
             link.download = `prism_artifact_${Date.now()}.png`;
-            link.href = canvas.toDataURL('image/png');
+            link.href = dataUrl;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             setShowExportMenu(false);
-        } catch (error) {
-            console.error("Export failed:", error);
-            alert("Failed to export image. Some external assets might be blocked.");
+
+        } catch (error: any) {
+            console.error("Export internal error:", error);
+            
+            let userMsg = "An unexpected error occurred during export.";
+            
+            if (error instanceof Error) {
+                userMsg = error.message;
+            } else if (error && typeof error === 'object') {
+                // Handle DOM Event objects (commonly "error" events from failed resource loads)
+                if ('type' in error && error.type === 'error') {
+                   userMsg = "A resource (likely an image or font) failed to load due to network or CORS security restrictions.";
+                } else {
+                   // Try to gracefully handle specific object types
+                   try {
+                        if (error.toString && error.toString() !== '[object Object]') {
+                            userMsg = error.toString();
+                        } else {
+                            userMsg = "Resource load failed. Check console for details.";
+                        }
+                        
+                        if (userMsg === '[object Event]') {
+                            userMsg = "A cross-origin resource blocked the export. Check console for details.";
+                        }
+                   } catch (e) {
+                       userMsg = "Unknown export error.";
+                   }
+                }
+            } else {
+                userMsg = String(error);
+            }
+            
+            alert(`Failed to export image: ${userMsg}`);
+        } finally {
+            setIsExporting(false);
         }
     }
   };
-
-  // CSS Logic to force Dark Mode styles on standard Tailwind classes
-  // This allows us to "re-theme" generated content without rewriting the HTML structure
-  const darkModeStyles = `
-    body { background-color: #09090b !important; color: #e4e4e7 !important; }
-    
-    /* Background Overrides */
-    .bg-white { background-color: #18181b !important; }
-    .bg-slate-50, .bg-gray-50, .bg-zinc-50 { background-color: #09090b !important; }
-    .bg-slate-100, .bg-gray-100 { background-color: #27272a !important; }
-    .bg-orange-50 { background-color: #2a1b12 !important; border-color: #431407 !important; }
-    .bg-blue-50 { background-color: #172554 !important; border-color: #1e3a8a !important; }
-    .bg-green-50 { background-color: #052e16 !important; border-color: #14532d !important; }
-    .bg-red-50 { background-color: #450a0a !important; border-color: #7f1d1d !important; }
-    
-    /* Text Overrides */
-    .text-slate-900, .text-gray-900, .text-zinc-900, .text-black { color: #f4f4f5 !important; }
-    .text-slate-800, .text-gray-800 { color: #e4e4e7 !important; }
-    .text-slate-700, .text-gray-700 { color: #d4d4d8 !important; }
-    .text-slate-600, .text-gray-600 { color: #a1a1aa !important; }
-    .text-slate-500, .text-gray-500 { color: #71717a !important; }
-    
-    /* Border Overrides */
-    .border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200 { border-color: #27272a !important; }
-    .border-white { border-color: #27272a !important; }
-    
-    /* Specific Element Fixes */
-    input { background-color: #27272a !important; color: white !important; border-color: #3f3f46 !important; }
-    .shadow-xl, .shadow-lg, .shadow-md { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important; }
-  `;
 
   // Construct the source document for the iframe
   const srcDoc = `
@@ -141,7 +224,34 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        ${fontCss 
+            ? `<style>${fontCss}</style>` 
+            : `<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">`
+        }
         <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+              darkMode: 'class',
+              theme: {
+                extend: {
+                  fontFamily: {
+                    sans: ['Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    display: ['Space Grotesk', 'Noto Sans SC', 'system-ui', 'sans-serif'],
+                  },
+                  colors: {
+                      brand: {
+                        400: '#a78bfa',
+                        500: '#8b5cf6',
+                        600: '#7c3aed',
+                      },
+                      accent: {
+                        500: '#ec4899',
+                      }
+                  }
+                }
+              }
+            }
+        </script>
         <style>
            /* Hide scrollbar for clean preview */
            ::-webkit-scrollbar { width: 0px; background: transparent; }
@@ -150,7 +260,7 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
                min-height: 100vh;
                margin: 0;
                overflow-x: hidden;
-               font-family: system-ui, -apple-system, sans-serif;
+               font-family: 'Inter', 'Noto Sans SC', sans-serif;
                transition: background-color 0.3s ease, color 0.3s ease;
            }
            
@@ -276,10 +386,11 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({
            <div className="relative" ref={exportMenuRef}>
                <button 
                  onClick={() => setShowExportMenu(!showExportMenu)}
-                 className="flex items-center gap-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-brand-900/20"
+                 disabled={isExporting}
+                 className="flex items-center gap-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-md transition-colors shadow-lg shadow-brand-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
                >
-                 <Download size={14} />
-                 Export
+                 {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                 {isExporting ? 'Processing...' : 'Export'}
                </button>
 
                {showExportMenu && (
