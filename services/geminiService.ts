@@ -2,10 +2,6 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { DEFAULT_TEMPLATES } from "../constants";
 
-// Initialize the client
-// Note: The API key must be available in process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 // Define the schema for structured output
 const contentGenerationSchema: Schema = {
   type: Type.OBJECT,
@@ -58,6 +54,9 @@ export const generateAgentResponse = async (
   useThinking: boolean = true
 ) => {
   try {
+    // Initialize the client inside the function to ensure process.env.API_KEY is available
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
     // Construct contents
     const currentParts: any[] = [];
     
@@ -70,7 +69,9 @@ export const generateAgentResponse = async (
       });
     }
     
-    currentParts.push({ text: prompt });
+    // Ensure prompt is never empty string, or it will cause 400 error if it's the only part
+    const validPrompt = prompt && prompt.trim() ? prompt : (inlineData ? "Analyze this content." : "Hello.");
+    currentParts.push({ text: validPrompt });
 
     // Prepare template info for context
     const templateContext = DEFAULT_TEMPLATES.map(t => ({
@@ -280,7 +281,17 @@ export const generateAgentResponse = async (
       config: config
     });
 
-    let text = response.text;
+    let text = response.text || "";
+
+    // If text is empty, return a safe default error instead of crashing on JSON parse
+    if (!text.trim()) {
+       console.warn("Received empty response from Gemini.");
+       return {
+         thoughtProcess: "Model returned an empty response.",
+         chatResponse: "I apologize, but I couldn't generate a response. This might be due to a safety filter or an issue processing the file.",
+         generatedArtifacts: []
+       };
+    }
 
     // Robust JSON extraction
     const firstBrace = text.indexOf('{');

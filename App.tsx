@@ -34,6 +34,18 @@ const fileToText = (file: File): Promise<string> => {
     });
 };
 
+// Helper to reliably get MIME type
+const getMimeType = (file: File): string => {
+  if (file.type) return file.type;
+  
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'webp') return 'image/webp';
+  return 'application/octet-stream';
+};
+
 const App: React.FC = () => {
   // --- Auth State ---
   const [user, setUser] = useState<User | null>(null);
@@ -206,52 +218,75 @@ const App: React.FC = () => {
     }
   };
 
-  const updateCurrentSession = (newMessages: ChatMessage[], newArtifactState?: GeneratedContentState) => {
-    if (!currentSessionId && user) {
-        // If sending first message and no session selected/created properly
+  // Refactored to allow explicit session ID management for async flows
+  const updateCurrentSession = (
+    newMessages: ChatMessage[], 
+    sessionId: string | null, 
+    newArtifactState?: GeneratedContentState
+  ): string => {
+    if (!user) return '';
+    
+    let targetId = sessionId;
+
+    // Case 1: Create New Session (if no ID provided)
+    if (!targetId) {
         const newId = Date.now().toString();
+        
+        let title = 'New Project';
+        // Try to generate a better title from the first user message if available
+        const firstUserMsg = newMessages.find(m => m.role === MessageRole.USER);
+        if (firstUserMsg) {
+             title = firstUserMsg.text.slice(0, 30) + (firstUserMsg.text.length > 30 ? '...' : '');
+        }
+
         const newSession: ChatSession = {
             id: newId,
-            title: newMessages[newMessages.length - 1].text.slice(0, 30) + '...',
+            title: title,
             userId: user.id,
             messages: newMessages,
             lastModified: Date.now(),
             artifactState: newArtifactState || contentState
         };
+        
+        // Update state
         setCurrentSessionId(newId);
         setSessions(prev => {
             const updated = [...prev, newSession];
             saveSessionsToStorage(updated);
             return updated;
         });
-        return;
+        
+        return newId;
     }
 
-    if (currentSessionId) {
-      setSessions(prev => {
-        const updated = prev.map(s => {
-          if (s.id === currentSessionId) {
-            let title = s.title;
-            // Update title if it's the second message (User's first actual prompt) and title is default
-            if (s.messages.length <= 1 && newMessages.length > 1 && s.title === 'New Project') {
-                 const firstUserMsg = newMessages.find(m => m.role === MessageRole.USER);
-                 if (firstUserMsg) title = firstUserMsg.text.slice(0, 30) + (firstUserMsg.text.length > 30 ? '...' : '');
-            }
-            
-            return {
-              ...s,
-              messages: newMessages,
-              lastModified: Date.now(),
-              artifactState: newArtifactState || (showArtifact ? contentState : undefined),
-              title
-            };
+    // Case 2: Update Existing Session
+    setSessions(prev => {
+      const updated = prev.map(s => {
+        if (s.id === targetId) {
+          let title = s.title;
+          // Update title if it's "New Project" and we have user messages now
+          if (s.title === 'New Project') {
+               const firstUserMsg = newMessages.find(m => m.role === MessageRole.USER);
+               if (firstUserMsg) {
+                   title = firstUserMsg.text.slice(0, 30) + (firstUserMsg.text.length > 30 ? '...' : '');
+               }
           }
-          return s;
-        });
-        saveSessionsToStorage(updated);
-        return updated;
+          
+          return {
+            ...s,
+            messages: newMessages,
+            lastModified: Date.now(),
+            artifactState: newArtifactState || (showArtifact ? contentState : undefined),
+            title
+          };
+        }
+        return s;
       });
-    }
+      saveSessionsToStorage(updated);
+      return updated;
+    });
+    
+    return targetId;
   };
 
   const handleSelectTemplate = (template: Template) => {
@@ -267,7 +302,7 @@ const App: React.FC = () => {
     setShowArtifact(true);
 
     // Update current session state without adding a chat message
-    updateCurrentSession(messages, newArtifactState);
+    updateCurrentSession(messages, currentSessionId, newArtifactState);
   };
 
   const handleApplyTemplate = async (templateId: string) => {
@@ -307,74 +342,130 @@ const App: React.FC = () => {
     setContentState(newArtifactState);
     setShowArtifact(true);
     // Update session state as well so it persists if user navigates away and back
-    updateCurrentSession(messages, newArtifactState);
+    updateCurrentSession(messages, currentSessionId, newArtifactState);
   };
 
   // --- Message Handling ---
   const handleSendMessage = async (text: string, file?: File) => {
-    // 1. Prepare Attachment Data
-    let inlineData: string | undefined;
-    let mimeType: string | undefined;
-    let fullPrompt = text;
+    // START PROCESSING IMMEDIATELY to prevent UI hang/no response feeling
+    setIsProcessing(true);
 
-    if (file) {
-      const isImage = file.type.startsWith('image/');
-      const isPdf = file.type === 'application/pdf';
-      const isTextFile = file.type.startsWith('text/') || 
-                         file.name.match(/\.(json|md|txt|js|ts|tsx|jsx|css|html|htm|csv|xml|py)$/i);
-
-      if (isImage || isPdf) {
-        inlineData = await fileToBase64(file);
-        mimeType = file.type;
-      } else if (isTextFile) {
-        try {
-          const fileContent = await fileToText(file);
-          fullPrompt = `${text}\n\n<AttachedFile name="${file.name}">\n${fileContent}\n</AttachedFile>`;
-        } catch (e) {
-           console.error("Failed to read text file", e);
-           fullPrompt += `\n[System: Failed to read content of attached file ${file.name}]`;
-        }
-      } else {
-         fullPrompt += `\n[System: User uploaded ${file.name}. Treat this as a file reference.]`;
-      }
+    // Safety Check: Limit file size to 20MB to prevent browser crash/white screen during read
+    if (file && file.size > 20 * 1024 * 1024) {
+       setMessages(prev => [
+         ...prev, 
+         {
+           id: Date.now().toString(),
+           role: MessageRole.USER,
+           text: text,
+           attachments: [{ name: file.name, type: file.type || 'application/octet-stream', data: '' }] 
+         },
+         {
+           id: (Date.now() + 1).toString(),
+           role: MessageRole.MODEL,
+           text: "文件处理失败：文件大小超过 20MB 限制。请上传较小的文件以避免系统卡顿。",
+           isError: true
+         }
+       ]);
+       setIsProcessing(false);
+       return;
     }
 
-    // 1. Update Local State with Message
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: MessageRole.USER,
-      text: text,
-      attachments: file ? [{
-        name: file.name,
-        type: file.type,
-        data: inlineData || '' // Store data for history context
-      }] : undefined
-    };
-
-    const updatedMessages = [...messages, newMessage];
-    setMessages(updatedMessages);
-    setIsProcessing(true);
-    
-    updateCurrentSession(updatedMessages);
+    // Capture locally for catch block access
+    let updatedMessages: ChatMessage[] = [];
+    // FIX: Use local variable activeSessionId. 
+    // If currentSessionId is null (New Project), updateCurrentSession will return the NEW ID.
+    // We must capture it to use after the await call below.
+    let activeSessionId = currentSessionId;
 
     try {
+      // 1. Prepare Attachment Data
+      let inlineData: string | undefined;
+      let mimeType: string | undefined;
+      // Default prompt if empty but file exists to satisfy API requirements
+      let fullPrompt = text.trim() === '' && file ? "Please analyze this document." : text;
+
+      if (file) {
+        const determinedMimeType = getMimeType(file);
+        const isImage = determinedMimeType.startsWith('image/');
+        const isPdf = determinedMimeType === 'application/pdf';
+        // Treat these as text if not PDF/Image
+        const isTextFile = !isImage && !isPdf && (
+            determinedMimeType.startsWith('text/') || 
+            file.name.match(/\.(json|md|txt|js|ts|tsx|jsx|css|html|htm|csv|xml|py)$/i)
+        );
+
+        if (isImage || isPdf) {
+          try {
+             inlineData = await fileToBase64(file);
+             mimeType = determinedMimeType;
+          } catch (e) {
+             console.error("Failed to read file:", e);
+             fullPrompt += `\n[System Error: Could not read file ${file.name}]`;
+          }
+        } else if (isTextFile) {
+          try {
+            const fileContent = await fileToText(file);
+            fullPrompt = `${fullPrompt}\n\n<AttachedFile name="${file.name}">\n${fileContent}\n</AttachedFile>`;
+          } catch (e) {
+             console.error("Failed to read text file", e);
+             fullPrompt += `\n[System: Failed to read content of attached file ${file.name}]`;
+          }
+        } else {
+           fullPrompt += `\n[System: User uploaded ${file.name}. Treat this as a file reference.]`;
+        }
+      }
+
+      // 2. Update Local State with Message
+      const newMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: MessageRole.USER,
+        text: text, // Display original text to user, even if empty
+        attachments: file ? [{
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          data: inlineData || '' // Store data for history context
+        }] : undefined
+      };
+
+      // Update UI with user message
+      updatedMessages = [...messages, newMessage];
+      setMessages(updatedMessages);
+
+      activeSessionId = updateCurrentSession(updatedMessages, activeSessionId);
+
+      // 3. Construct API Call
       // Construct History correctly using stored base64 data for context
       // EXCLUDE the last message we just added, as it's passed as 'prompt' to generateAgentResponse wrapper
-      const historyForApi = messages.map(m => {
+      const historyForApi = messages.map((m, index) => {
+        // MEMORY OPTIMIZATION:
+        // Do not send heavy base64 data for messages older than the last 2 turns
+        // (User + Model = 1 turn. So last 4 messages approx).
+        // This prevents the request payload from ballooning to 100MB+ causing OOM crashes.
+        const isRecent = index >= messages.length - 2; 
+
         const parts: any[] = [];
         if (m.attachments && m.attachments.length > 0) {
           m.attachments.forEach(att => {
-            if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
-              parts.push({
-                inlineData: {
-                  mimeType: att.type,
-                  data: att.data
+             // Only include inlineData if it's recent OR if it's small (< 500KB)
+             const isSmall = att.data.length < 500 * 1024;
+             
+             if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
+                if (isRecent || isSmall) {
+                   parts.push({
+                     inlineData: {
+                       mimeType: att.type,
+                       data: att.data
+                     }
+                   });
+                } else {
+                   // Pruned marker to save memory
+                   parts.push({ text: `[System: Attachment ${att.name} pruned to save memory. Refer to previous analysis.]` });
                 }
-              });
-            }
+             }
           });
         }
-        parts.push({ text: m.text });
+        parts.push({ text: m.text || " " }); // Ensure no empty text parts in history
         
         return {
           role: m.role === MessageRole.USER ? 'user' : 'model',
@@ -415,18 +506,24 @@ const App: React.FC = () => {
         setContentState(newArtifactState);
         setShowArtifact(true);
       }
-      // If multiple artifacts are generated, we do NOT auto-open. User must select from cards.
 
-      updateCurrentSession(finalMessages, newArtifactState);
+      // Use the stable activeSessionId here
+      updateCurrentSession(finalMessages, activeSessionId, newArtifactState);
 
     } catch (error) {
       console.error("Error generating response:", error);
-      setMessages(prev => [...prev, {
+      const errorMessage: ChatMessage = {
         id: Date.now().toString(),
         role: MessageRole.MODEL,
-        text: "I encountered a glitch in the prism. Please try again.",
+        text: "I encountered a glitch in the prism (API Error). Please try again. If this persists, check your API Key.",
         isError: true
-      }]);
+      };
+      
+      const finalMessages = [...updatedMessages, errorMessage];
+      setMessages(finalMessages);
+      // Update session even on error to prevent session fragmentation
+      updateCurrentSession(finalMessages, activeSessionId);
+
     } finally {
       setIsProcessing(false);
     }
@@ -453,34 +550,40 @@ const App: React.FC = () => {
     setMessages(intermediateMessages);
     setIsProcessing(true);
 
-    // 5. Re-trigger generation
-    // We need to extract attachments from the edited message if they exist, to pass to API
-    let inlineData: string | undefined;
-    let mimeType: string | undefined;
-    let fullPrompt = newText;
-
-    if (updatedMessage.attachments && updatedMessage.attachments.length > 0) {
-        const att = updatedMessage.attachments[0];
-        // If it's text file, technically we should re-read it but here we assume 'text' in prompt was already enriched.
-        // If it was an image, we need to pass it again.
-        if (att.type.startsWith('image/') || att.type === 'application/pdf') {
-             inlineData = att.data;
-             mimeType = att.type;
-        }
-    }
-
     try {
+        // We need to extract attachments from the edited message if they exist, to pass to API
+        let inlineData: string | undefined;
+        let mimeType: string | undefined;
+        let fullPrompt = newText;
+
+        if (updatedMessage.attachments && updatedMessage.attachments.length > 0) {
+            const att = updatedMessage.attachments[0];
+            // If it's text file, technically we should re-read it but here we assume 'text' in prompt was already enriched.
+            // If it was an image, we need to pass it again.
+            if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
+                 inlineData = att.data;
+                 mimeType = att.type;
+            }
+        }
+
         // Construct API history from previous messages
-        const historyForApi = previousMessages.map(m => {
+        // Apply pruning logic here as well
+        const historyForApi = previousMessages.map((m, index) => {
+            const isRecent = index >= previousMessages.length - 2;
             const parts: any[] = [];
             if (m.attachments && m.attachments.length > 0) {
                 m.attachments.forEach(att => {
+                    const isSmall = att.data.length < 500 * 1024;
                     if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
-                        parts.push({ inlineData: { mimeType: att.type, data: att.data } });
+                        if (isRecent || isSmall) {
+                            parts.push({ inlineData: { mimeType: att.type, data: att.data } });
+                        } else {
+                            parts.push({ text: `[Attachment pruned]` });
+                        }
                     }
                 });
             }
-            parts.push({ text: m.text });
+            parts.push({ text: m.text || " " });
             return { role: m.role === MessageRole.USER ? 'user' : 'model', parts };
         });
 
@@ -512,16 +615,22 @@ const App: React.FC = () => {
             setContentState(newArtifactState);
             setShowArtifact(true);
         }
-        updateCurrentSession(finalMessages, newArtifactState);
+        
+        // Pass currentSessionId explicitly
+        updateCurrentSession(finalMessages, currentSessionId, newArtifactState);
 
     } catch (error) {
         console.error("Error generating response after edit:", error);
-        setMessages(prev => [...prev, {
+        const errorMessage: ChatMessage = {
             id: Date.now().toString(),
             role: MessageRole.MODEL,
             text: "I encountered a glitch while regenerating. Please try again.",
             isError: true
-        }]);
+        };
+        const finalMessages = [...intermediateMessages, errorMessage];
+        setMessages(finalMessages);
+        // Persist error state
+        updateCurrentSession(finalMessages, currentSessionId);
     } finally {
         setIsProcessing(false);
     }
@@ -529,9 +638,6 @@ const App: React.FC = () => {
 
   const handleRetry = async () => {
      // Find the last user message to resend
-     // We assume the error happened on the last model turn, so the last USER message is what we want.
-     // OR if the last message is an error model message, we look before it.
-     
      const reversed = [...messages].reverse();
      const lastUserMsg = reversed.find(m => m.role === MessageRole.USER);
      
@@ -543,8 +649,7 @@ const App: React.FC = () => {
          currentHistory.pop();
      }
      
-     // But wait, if we want to "Retry", we usually want to regenerate the response to the *last user message*.
-     // So we should strip any model response that came AFTER that user message (if partial/error).
+     // Strip any model response that came AFTER that user message
      const lastUserIndex = currentHistory.findIndex(m => m.id === lastUserMsg.id);
      if (lastUserIndex !== -1) {
          currentHistory = currentHistory.slice(0, lastUserIndex + 1);
@@ -554,37 +659,41 @@ const App: React.FC = () => {
      setMessages(currentHistory);
      setIsProcessing(true);
 
-     // Trigger generation
-     // Similar logic to edit: prompt is last user msg, history is everything before it
-     const historyMessages = currentHistory.slice(0, -1);
-     
-     let inlineData: string | undefined;
-     let mimeType: string | undefined;
-     
-     if (lastUserMsg.attachments && lastUserMsg.attachments.length > 0) {
-         const att = lastUserMsg.attachments[0];
-         if (att.type.startsWith('image/') || att.type === 'application/pdf') {
-             inlineData = att.data;
-             mimeType = att.type;
-         }
-     }
-
      try {
-         const historyForApi = historyMessages.map(m => {
+         const historyMessages = currentHistory.slice(0, -1);
+         
+         let inlineData: string | undefined;
+         let mimeType: string | undefined;
+         
+         if (lastUserMsg.attachments && lastUserMsg.attachments.length > 0) {
+             const att = lastUserMsg.attachments[0];
+             if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
+                 inlineData = att.data;
+                 mimeType = att.type;
+             }
+         }
+
+         const historyForApi = historyMessages.map((m, index) => {
+            const isRecent = index >= historyMessages.length - 2;
             const parts: any[] = [];
             if (m.attachments && m.attachments.length > 0) {
                 m.attachments.forEach(att => {
+                    const isSmall = att.data.length < 500 * 1024;
                     if ((att.type.startsWith('image/') || att.type === 'application/pdf') && att.data) {
-                        parts.push({ inlineData: { mimeType: att.type, data: att.data } });
+                         if (isRecent || isSmall) {
+                            parts.push({ inlineData: { mimeType: att.type, data: att.data } });
+                        } else {
+                            parts.push({ text: `[Attachment pruned]` });
+                        }
                     }
                 });
             }
-            parts.push({ text: m.text });
+            parts.push({ text: m.text || " " });
             return { role: m.role === MessageRole.USER ? 'user' : 'model', parts };
         });
 
         const response = await generateAgentResponse(
-            lastUserMsg.text, 
+            lastUserMsg.text || "Retry", 
             historyForApi, 
             inlineData, 
             mimeType, 
@@ -611,15 +720,21 @@ const App: React.FC = () => {
             setContentState(newArtifactState);
             setShowArtifact(true);
         }
-        updateCurrentSession(finalMessages, newArtifactState);
+        
+        // Pass currentSessionId explicitly
+        updateCurrentSession(finalMessages, currentSessionId, newArtifactState);
      } catch (error) {
         console.error("Retry failed:", error);
-        setMessages(prev => [...prev, {
+        const errorMessage: ChatMessage = {
             id: Date.now().toString(),
             role: MessageRole.MODEL,
             text: "Retry failed. Please try again.",
             isError: true
-        }]);
+        };
+        const finalMessages = [...currentHistory, errorMessage];
+        setMessages(finalMessages);
+        // Persist error state
+        updateCurrentSession(finalMessages, currentSessionId);
      } finally {
         setIsProcessing(false);
      }

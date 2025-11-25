@@ -25,6 +25,8 @@ interface ChatSidebarProps {
   onToggleThinking: () => void;
 }
 
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+
 const ChatSidebar: React.FC<ChatSidebarProps> = ({ 
   messages, 
   onSendMessage, 
@@ -82,7 +84,15 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        alert("文件过大，系统限制上传不超过 20MB 的文件。");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''; // Clear input
+        }
+        return;
+      }
+      setSelectedFile(file);
     }
   };
 
