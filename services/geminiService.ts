@@ -39,7 +39,6 @@ const contentGenerationSchema: Schema = {
             - **Document**: [Name and type]
             - **Extracted**: [Core content list]
             - **Key Points**: [Critical data points]
-
           `,
     },
     chatResponse: {
@@ -59,34 +58,17 @@ const contentGenerationSchema: Schema = {
     generatedArtifacts: {
       type: Type.ARRAY,
       description: `
+      
           Generate 4+ design variations tailored for pharmaceutical/medical content:
           
           [Design Options Required]
           Minimum 4 distinct designs, each optimized for different contexts:
 
-          Option 1: CLINICAL/PROFESSIONAL
+          Option: CLINICAL/PROFESSIONAL
           - Audience: Healthcare professionals, regulatory bodies
           - Style: Clean, authoritative, data-focused
           - Layout: Structured sections, clear information hierarchy
           - Colors: Medical blues, whites, trust-building palette
-
-          Option 2: PATIENT-FRIENDLY
-          - Audience: Patients, caregivers, general public
-          - Style: Warm, accessible, supportive
-          - Layout: Simple navigation, digestible content blocks
-          - Colors: Soft, approachable, calming tones
-
-          Option 3: CORPORATE/INVESTOR
-          - Audience: Stakeholders, partners, investors
-          - Style: Professional, polished, business-oriented
-          - Layout: Dashboard-inspired, metrics-forward
-          - Colors: Corporate blues/grays, confident aesthetics
-
-          Option 4: MODERN DIGITAL HEALTH
-          - Audience: Tech-savvy consumers, digital health users
-          - Style: Contemporary, app-like, innovative
-          - Layout: Card-based, mobile-app inspired
-          - Colors: Fresh, modern, gradient accents
 
           [Content Adaptation]
           Same medical/pharma information presented with:
@@ -100,8 +82,7 @@ const contentGenerationSchema: Schema = {
           - Accessibility compliance considerations
           - Clear information architecture for each audience
 
-          ---
-            ✓ Chinese Output | ✓ Clear Structure | ✓ Professional Accuracy
+          Must Do:All four content pieces shall be generated in detail as much as possible in accordance with the prompt.
       `
       ,
       items: {
@@ -341,230 +322,7 @@ export const generateAgentResponse = async (
         
         ---
         
-        #### 3.2 Medical Illustration Implementation Patterns
-        
-        **Pattern A: Hero Section with Featured Medical Visual**
-        <div class="relative bg-gradient-to-br from-slate-50 to-white overflow-hidden">
-          <div class="max-w-7xl mx-auto px-4 md:px-8 py-12 md:py-20">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
-              
-              <!-- Text Content -->
-              <div class="space-y-6">
-                <div class="inline-block px-3 py-1 bg-[#F16F20] bg-opacity-10 rounded-full text-[#F16F20] text-sm font-semibold">
-                  突破性疗法
-                </div>
-                <h1 class="text-3xl md:text-5xl font-bold text-slate-900 leading-tight">
-                  精准靶向<br />肿瘤细胞周期
-                </h1>
-                <p class="text-lg md:text-xl text-slate-600 leading-relaxed">
-                  CDK4/6抑制剂通过阻断G1/S检查点，选择性抑制肿瘤细胞增殖，同时保护正常细胞功能
-                </p>
-              </div>
-              
-              <!-- Medical Illustration -->
-              <div class="relative">
-                <img 
-                  src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&h=600&fit=crop" 
-                  alt="CDK4/6抑制剂作用机制示意图：显示细胞周期中Cyclin D-CDK4/6复合物如何被抑制剂阻断，阻止Rb蛋白磷酸化，从而阻止细胞从G1期进入S期"
-                  class="w-full h-auto rounded-2xl shadow-2xl"
-                />
-                <!-- Annotation Badge -->
-                <div class="absolute -bottom-4 -right-4 bg-[#F16F20] text-white px-6 py-3 rounded-xl shadow-xl">
-                  <div class="text-sm font-semibold">精准阻断</div>
-                  <div class="text-2xl font-bold">G1→S</div>
-                </div>
-              </div>
-              
-            </div>
-          </div>
-        </div>
-        
-        **Pattern B: Inline Medical Diagram with Caption**
-        <div class="my-12">
-          <figure class="bg-slate-50 rounded-2xl p-6 md:p-10">
-            <div class="aspect-[16/9] mb-6 bg-white rounded-xl overflow-hidden">
-              <img 
-                src="https://images.unsplash.com/photo-1579154204601-01588f351e67?w=1200&h=675&fit=crop" 
-                alt="乳腺癌分期演变示意图：从I期局限性病灶、II期区域淋巴结转移、III期广泛淋巴结受累，到IV期远处器官转移的完整疾病进展过程"
-                class="w-full h-full object-cover"
-              />
-            </div>
-            <figcaption class="text-center space-y-2">
-              <div class="text-sm font-semibold text-slate-900">
-                图1: 乳腺癌疾病进展的四个关键阶段
-              </div>
-              <div class="text-xs text-slate-600">
-                数据来源: AJCC Cancer Staging Manual, 8th Edition (2017)
-              </div>
-            </figcaption>
-          </figure>
-        </div>
-        
-        **Pattern C: Side-by-Side Visual Comparison**
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 my-12">
-          
-          <!-- Traditional Approach -->
-          <div class="group bg-white border-2 border-slate-200 rounded-2xl p-6 hover:border-slate-300 transition-all">
-            <div class="aspect-square bg-slate-100 rounded-xl mb-6 overflow-hidden">
-              <img 
-                src="https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=400&fit=crop" 
-                alt="传统化疗示意图：非选择性作用于所有快速分裂的细胞，包括肿瘤细胞和正常快速分裂细胞如毛囊、消化道上皮"
-                class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-              />
-            </div>
-            <div class="flex items-start gap-3 mb-3">
-              <div class="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-bold text-slate-900 mb-2">传统化疗</h3>
-                <p class="text-slate-600 text-sm leading-relaxed">
-                  非选择性杀伤所有快速分裂细胞，容易导致脱发、恶心等全身性副作用
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Targeted Therapy -->
-          <div class="group bg-gradient-to-br from-orange-50 to-white border-2 border-[#F16F20] rounded-2xl p-6 hover:shadow-xl transition-all">
-            <div class="aspect-square bg-orange-100 rounded-xl mb-6 overflow-hidden">
-              <img 
-                src="https://images.unsplash.com/photo-1582719471137-c3967ffb1c42?w=400&h=400&fit=crop" 
-                alt="CDK4/6靶向治疗示意图：选择性识别并结合肿瘤细胞表面的CDK4/6受体，精准阻断癌细胞增殖信号传导，对正常细胞影响最小"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-            <div class="flex items-start gap-3 mb-3">
-              <div class="w-10 h-10 bg-[#F16F20] rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-              </div>
-              <div>
-                <h3 class="text-xl font-bold text-[#F16F20] mb-2">CDK4/6 靶向治疗</h3>
-                <p class="text-slate-700 text-sm leading-relaxed">
-                  精准识别肿瘤细胞特异性标志物，选择性阻断增殖信号，最大限度保护正常组织
-                </p>
-              </div>
-            </div>
-            <div class="mt-4 pt-4 border-t border-orange-200">
-              <div class="flex items-center text-sm text-[#F16F20] font-semibold">
-                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                副作用显著降低
-              </div>
-            </div>
-          </div>
-          
-        </div>
-        
-        **Pattern D: Anatomical Context with Annotations**
-        <div class="relative max-w-5xl mx-auto my-16">
-          
-          <!-- Main Anatomical Image -->
-          <div class="relative aspect-[16/10] bg-gradient-to-br from-blue-50 to-slate-50 rounded-3xl overflow-hidden p-8">
-            <img 
-              src="https://images.unsplash.com/photo-1559757175-5700dde675bc?w=1200&h=750&fit=crop" 
-              alt="乳腺解剖结构详细示意图：标注乳腺导管系统、小叶结构、脂肪组织、乳头乳晕复合体、腋窝淋巴结链、胸大肌筋膜等关键解剖结构"
-              class="w-full h-full object-contain drop-shadow-2xl"
-            />
-          </div>
-          
-          <!-- Floating Annotation Cards -->
-          <div class="absolute top-1/4 right-8 bg-white rounded-xl shadow-2xl p-4 max-w-xs hidden md:block animate-fade-in">
-            <div class="flex items-start gap-3">
-              <div class="w-3 h-3 bg-[#F16F20] rounded-full mt-1.5 flex-shrink-0"></div>
-              <div>
-                <div class="font-bold text-sm text-slate-900 mb-1">乳腺导管系统</div>
-                <div class="text-xs text-slate-600 leading-relaxed">
-                  约85%的乳腺癌起源于导管上皮细胞（导管癌），是最常见的乳腺癌类型
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="absolute bottom-1/3 left-8 bg-white rounded-xl shadow-2xl p-4 max-w-xs hidden md:block animate-fade-in animation-delay-300">
-            <div class="flex items-start gap-3">
-              <div class="w-3 h-3 bg-teal-600 rounded-full mt-1.5 flex-shrink-0"></div>
-              <div>
-                <div class="font-bold text-sm text-slate-900 mb-1">腋窝淋巴结</div>
-                <div class="text-xs text-slate-600 leading-relaxed">
-                  淋巴结转移状态是乳腺癌分期的关键指标，直接影响治疗方案选择
-                </div>
-              </div>
-            </div>
-          </div>
-          
-        </div>
-        
-        <style>
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
-        .animation-delay-300 { animation-delay: 300ms; }
-        </style>
-        
-        **Pattern E: Icon-Based Feature Grid with Medical Icons**
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 my-12">
-          
-          <div class="bg-white border border-slate-200 rounded-xl p-6 text-center hover:border-[#F16F20] hover:shadow-lg transition-all">
-            <div class="w-16 h-16 mx-auto mb-4 bg-orange-100 rounded-full flex items-center justify-center">
-              <img 
-                src="https://api.dicebear.com/7.x/shapes/svg?seed=pill&backgroundColor=F16F20" 
-                alt="口服给药图标"
-                class="w-10 h-10"
-              />
-            </div>
-            <div class="text-sm font-semibold text-slate-900 mb-1">口服给药</div>
-            <div class="text-xs text-slate-600">便捷的居家用药方式</div>
-          </div>
-          
-          <div class="bg-white border border-slate-200 rounded-xl p-6 text-center hover:border-[#F16F20] hover:shadow-lg transition-all">
-            <div class="w-16 h-16 mx-auto mb-4 bg-teal-100 rounded-full flex items-center justify-center">
-              <img 
-                src="https://api.dicebear.com/7.x/shapes/svg?seed=calendar&backgroundColor=0F766E" 
-                alt="每日一次图标"
-                class="w-10 h-10"
-              />
-            </div>
-            <div class="text-sm font-semibold text-slate-900 mb-1">每日一次</div>
-            <div class="text-xs text-slate-600">简化的给药频率</div>
-          </div>
-          
-          <div class="bg-white border border-slate-200 rounded-xl p-6 text-center hover:border-[#F16F20] hover:shadow-lg transition-all">
-            <div class="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-              <img 
-                src="https://api.dicebear.com/7.x/shapes/svg?seed=safety&backgroundColor=1E3A8A" 
-                alt="安全性良好图标"
-                class="w-10 h-10"
-              />
-            </div>
-            <div class="text-sm font-semibold text-slate-900 mb-1">可控副作用</div>
-            <div class="text-xs text-slate-600">可通过剂量管理</div>
-          </div>
-          
-          <div class="bg-white border border-slate-200 rounded-xl p-6 text-center hover:border-[#F16F20] hover:shadow-lg transition-all">
-            <div class="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-              <img 
-                src="https://api.dicebear.com/7.x/shapes/svg?seed=quality&backgroundColor=059669" 
-                alt="生活质量图标"
-                class="w-10 h-10"
-              />
-            </div>
-            <div class="text-sm font-semibold text-slate-900 mb-1">改善生活质量</div>
-            <div class="text-xs text-slate-600">维持日常活动能力</div>
-          </div>
-          
-        </div>
-        
-        ---
-        
-        #### 3.3 Image Source Strategy
+        #### 3.2 Image Source Strategy
         
         **Recommended Image Sources** (in priority order):
         
@@ -604,7 +362,7 @@ export const generateAgentResponse = async (
         
         ---
         
-        #### 3.4 Alt Text Requirements (Critical for Accessibility & Compliance)
+        #### 3.3 Alt Text Requirements (Critical for Accessibility & Compliance)
         
         **Medical Alt Text Formula**:
         [Image Type] + [Anatomical/Medical Content] + [Key Educational Point]
@@ -632,7 +390,7 @@ export const generateAgentResponse = async (
         
         ---
         
-        #### 3.5 Responsive Image Implementation
+        #### 3.4 Responsive Image Implementation
         
         **Mobile-Optimized Image Patterns**:
         <!-- Hero Images: Adjust aspect ratio for mobile -->
@@ -671,7 +429,7 @@ export const generateAgentResponse = async (
         
         ---
         
-        #### 3.6 Image Loading Performance
+        #### 3.5 Image Loading Performance
         
         **Optimization Techniques**:
         <!-- Lazy Loading for Below-the-Fold Images -->
