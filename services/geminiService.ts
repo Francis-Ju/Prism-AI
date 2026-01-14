@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { DEFAULT_TEMPLATES } from "../constants";
+import { checkIsOnPlatform } from "./storage";
 
 // Define the schema for structured output
 const contentGenerationSchema: Schema = {
@@ -667,13 +668,14 @@ export const generateAgentResponse = async (
     // Retry Loop for robustness against transient 500/XHR errors
     const makeRequest = async (retries = 3, delay = 1000): Promise<any> => {
       try {
-        // Initialize the client inside the function to ensure process.env.API_KEY is available
-        // This fixes the "Request had invalid authentication credentials" (401) error 
-        // by ensuring we don't read the env var before it's ready.
-        if (!process.env.API_KEY) {
-           console.warn("API_KEY is missing from environment variables.");
-        }
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const isOnPlatform = checkIsOnPlatform();
+        // Initialize the client inside the function
+        const ai = new GoogleGenAI({ 
+          apiKey: isOnPlatform ? undefined : process.env.API_KEY,
+          httpOptions: {
+            baseUrl: isOnPlatform ? `${location.origin}/api/llm/proxy` : undefined
+          }
+        });
         
         return await ai.models.generateContent({
           model: modelName,
@@ -687,10 +689,15 @@ export const generateAgentResponse = async (
           config: config
         });
       } catch (error: any) {
-        // Check for retryable errors (500, 503, XHR failed, fetch failed)
+        // Check for retryable errors (500, 503, XHR failed, fetch failed, 401 on platform)
         const status = error.status || error.response?.status || 0;
         const msg = (error.message || '').toLowerCase();
         
+        // Handle Platform 401 specifically
+        if (checkIsOnPlatform() && status === 401) {
+           throw new Error("当前应用未开放用户登录，无法调用大模型服务 (401 Unauthorized)");
+        }
+
         const isRetryable = 
           status === 503 || 
           status === 500 || 

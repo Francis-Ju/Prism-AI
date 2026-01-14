@@ -8,6 +8,7 @@ import TemplateLibrary from './components/TemplateLibrary';
 import { ChatMessage, MessageRole, DeviceMode, GeneratedContentState, User, ChatSession, Template, ModelType } from './types';
 import { generateAgentResponse } from './services/geminiService';
 import { DEFAULT_TEMPLATES } from './constants';
+import { storage } from './services/storage';
 
 // Helper to convert file to Base64 (for Images/PDFs)
 const fileToBase64 = (file: File): Promise<string> => {
@@ -49,6 +50,7 @@ const getMimeType = (file: File): string => {
 const App: React.FC = () => {
   // --- Auth State ---
   const [user, setUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   
   // --- App State ---
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -77,15 +79,30 @@ const App: React.FC = () => {
 
   // --- Initialization ---
   useEffect(() => {
-    const storedUser = localStorage.getItem('prism_user');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      loadSessions(parsedUser.id);
-    }
+    const initApp = async () => {
+      try {
+        await storage.init();
+        
+        // Load User
+        const storedUser = await storage.get<User>('prism_user');
+        if (storedUser) {
+          setUser(storedUser);
+          await loadSessions(storedUser.id);
+        }
 
-    const storedTheme = localStorage.getItem('prism_theme') as 'prism' | 'novartis';
-    if (storedTheme) setTheme(storedTheme);
+        // Load Theme
+        const storedTheme = await storage.get<string>('prism_theme');
+        if (storedTheme && (storedTheme === 'prism' || storedTheme === 'novartis')) {
+          setTheme(storedTheme as 'prism' | 'novartis');
+        }
+      } catch (e) {
+        console.error("Initialization failed", e);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    
+    initApp();
   }, []);
 
   // --- Theme Effect ---
@@ -93,19 +110,18 @@ const App: React.FC = () => {
     document.body.className = theme === 'novartis' ? 'theme-novartis' : '';
   }, [theme]);
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
     const newTheme = theme === 'prism' ? 'novartis' : 'prism';
     setTheme(newTheme);
-    localStorage.setItem('prism_theme', newTheme);
+    await storage.set('prism_theme', newTheme);
   };
 
   // --- Session Management ---
-  const loadSessions = (userId: string) => {
-    const storedSessions = localStorage.getItem(`prism_sessions_${userId}`);
+  const loadSessions = async (userId: string) => {
+    const storedSessions = await storage.get<ChatSession[]>(`prism_sessions_${userId}`);
     if (storedSessions) {
-      const parsed = JSON.parse(storedSessions);
-      setSessions(parsed);
-      if (parsed.length > 0) {
+      setSessions(storedSessions);
+      if (storedSessions.length > 0) {
         // Start fresh by default to respect "New Project" feel
         startNewChat(false); 
       } else {
@@ -116,9 +132,9 @@ const App: React.FC = () => {
     }
   };
 
-  const saveSessionsToStorage = (updatedSessions: ChatSession[]) => {
+  const saveSessionsToStorage = async (updatedSessions: ChatSession[]) => {
     if (!user) return;
-    localStorage.setItem(`prism_sessions_${user.id}`, JSON.stringify(updatedSessions));
+    await storage.set(`prism_sessions_${user.id}`, updatedSessions);
   };
 
   const startNewChat = (shouldResetUI = true) => {
@@ -167,19 +183,19 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = (username: string) => {
+  const handleLogin = async (username: string) => {
     const newUser: User = {
       id: username.toLowerCase().replace(/\s+/g, '_'), 
       username: username,
       createdAt: Date.now()
     };
-    localStorage.setItem('prism_user', JSON.stringify(newUser));
+    await storage.set('prism_user', newUser);
     setUser(newUser);
     loadSessions(newUser.id);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('prism_user');
+  const handleLogout = async () => {
+    await storage.delete('prism_user');
     setUser(null);
     setSessions([]);
     setMessages([]);
@@ -310,10 +326,9 @@ const App: React.FC = () => {
     let template = DEFAULT_TEMPLATES.find(t => t.id === templateId);
     if (!template) {
       try {
-        const stored = localStorage.getItem('prism_templates');
+        const stored = await storage.get<Template[]>('prism_templates');
         if (stored) {
-          const customTemplates: Template[] = JSON.parse(stored);
-          template = customTemplates.find(t => t.id === templateId);
+          template = stored.find(t => t.id === templateId);
         }
       } catch (e) {
         // ignore error
@@ -517,7 +532,7 @@ const App: React.FC = () => {
       let errorText = "I encountered a glitch in the prism. Please try again.";
       // Customize error message for better UX
       if (error.message?.includes('401') || error.status === 401) {
-          errorText = "Authentication failed. The API Key may be invalid.";
+          errorText = error.message || "Authentication failed. The API Key may be invalid.";
       } else if (error.message?.includes('500') || error.status === 500 || error.message?.includes('xhr')) {
           errorText = "Connection error. The document might be too large or the server is momentarily overloaded. I have already tried retrying, but please try uploading a smaller file or trying again in a moment.";
       } else if (error.message?.includes('429')) {
@@ -763,6 +778,10 @@ const App: React.FC = () => {
         setIsProcessing(false);
      }
   };
+
+  if (isInitializing) {
+    return <div className="h-screen w-screen bg-dark-950 text-white flex items-center justify-center">Initializing Prism...</div>;
+  }
 
   if (!user) {
     return <AuthScreen onLogin={handleLogin} />;

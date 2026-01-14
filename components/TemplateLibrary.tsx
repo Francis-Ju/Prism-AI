@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Code, Trash2, Layout, Edit2, Check, Upload, MousePointerClick, Save, ArrowLeft, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Plus, Code, Trash2, Layout, Edit2, Check, Upload, Save, ArrowLeft, AlertCircle, ChevronLeft, ChevronRight, Search, Sidebar, Filter, FileText } from 'lucide-react';
 import { Template } from '../types';
 import { DEFAULT_TEMPLATES } from '../constants';
+import { storage } from '../services/storage';
 
 interface TemplateLibraryProps {
   isOpen: boolean;
@@ -11,6 +13,8 @@ interface TemplateLibraryProps {
 
 const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSelectTemplate }) => {
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Editing State
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
@@ -26,31 +30,40 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('prism_templates');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setTemplates(parsed.length > 0 ? parsed : DEFAULT_TEMPLATES);
-      } catch (e) {
-        setTemplates(DEFAULT_TEMPLATES);
-      }
-    } else {
-      setTemplates(DEFAULT_TEMPLATES);
-      localStorage.setItem('prism_templates', JSON.stringify(DEFAULT_TEMPLATES));
-    }
+    const loadTemplates = async () => {
+        try {
+            const stored = await storage.get<Template[]>('prism_templates');
+            // Merge defaults if needed or just use parsed. 
+            setTemplates(stored && stored.length > 0 ? stored : DEFAULT_TEMPLATES);
+        } catch (e) {
+            setTemplates(DEFAULT_TEMPLATES);
+        }
+    };
+    loadTemplates();
   }, []);
 
-  const handleSaveTemplates = (updatedTemplates: Template[]) => {
+  const handleSaveTemplates = async (updatedTemplates: Template[]) => {
     setTemplates(updatedTemplates);
-    localStorage.setItem('prism_templates', JSON.stringify(updatedTemplates));
+    await storage.set('prism_templates', updatedTemplates);
   };
+
+  // Get Categories
+  const categories = ['All', ...Array.from(new Set(templates.map(t => t.category)))];
+
+  // Filter Logic
+  const filteredTemplates = templates.filter(t => {
+    const matchesCategory = selectedCategory === 'All' || t.category === selectedCategory;
+    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          t.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   // --- Delete Logic ---
   
   const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setEditingNameId(null); // Stop renaming if active
-    setDeletingId(id);      // Show inline confirmation
+    setEditingNameId(null); 
+    setDeletingId(id);      
   };
 
   const handleConfirmDelete = (e: React.MouseEvent, id: string) => {
@@ -117,7 +130,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
 
   const startRename = (e: React.MouseEvent, t: Template) => {
     e.stopPropagation();
-    setDeletingId(null); // Stop deleting if active
+    setDeletingId(null); 
     setEditingNameId(t.id);
     setEditName(t.name);
   };
@@ -162,7 +175,6 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
   const handleNavigate = (direction: 'prev' | 'next') => {
     if (!editorTemplate) return;
 
-    // Check for unsaved changes
     if (editorCode !== editorTemplate.htmlContent) {
       if (!window.confirm('You have unsaved changes. Switching templates will discard them. Continue?')) {
         return;
@@ -173,8 +185,6 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
     if (currentIndex === -1) return;
 
     let newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1;
-
-    // Wrap around logic
     if (newIndex < 0) newIndex = templates.length - 1;
     if (newIndex >= templates.length) newIndex = 0;
 
@@ -208,8 +218,9 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
               background-color: white; 
               min-height: 100vh;
               margin: 0;
+              overflow-y: hidden; /* Hide scrollbars in thumbnail */
             }
-            ::-webkit-scrollbar { display: none; }
+            /* Scale down content for thumbnail view if needed, but iframe scale usually handles it */
           </style>
         </head>
         <body>${safeHtml}</body>
@@ -220,11 +231,15 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
-      <div className="bg-dark-950 border border-dark-700 w-full max-w-[1400px] h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in p-4 lg:p-8">
+      
+      {/* Container */}
+      <div className="bg-dark-950 border border-dark-700 w-full h-full rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
         
+        {/* Editor Mode */}
         {editorTemplate ? (
            <div className="flex flex-col h-full animate-fade-in bg-dark-950">
+              {/* Editor Header */}
               <div className="h-16 border-b border-dark-800 flex items-center justify-between px-6 bg-dark-900/80 backdrop-blur-md">
                  <div className="flex items-center gap-4">
                     <button 
@@ -235,44 +250,19 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                       <ArrowLeft size={20} />
                     </button>
                     
-                    {/* Navigation Buttons */}
                     <div className="flex items-center gap-1 bg-dark-800/50 p-1 rounded-lg border border-dark-700">
-                        <button 
-                          onClick={() => handleNavigate('prev')}
-                          className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"
-                          title="Previous Template"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
+                        <button onClick={() => handleNavigate('prev')} className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"><ChevronLeft size={16} /></button>
                         <div className="w-px h-4 bg-dark-700"></div>
-                        <button 
-                          onClick={() => handleNavigate('next')}
-                          className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"
-                          title="Next Template"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
+                        <button onClick={() => handleNavigate('next')} className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-700 rounded-md transition-colors"><ChevronRight size={16} /></button>
                     </div>
 
-                    <div>
-                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        Editing <span className="text-brand-400">{editorTemplate.name}</span>
-                      </h2>
-                    </div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <span className="text-gray-500">Editing</span>
+                      <span className="text-brand-400">{editorTemplate.name}</span>
+                    </h2>
                  </div>
+                 
                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={(e) => {
-                         if (window.confirm("Are you sure you want to delete this template?")) {
-                             handleConfirmDelete(e, editorTemplate.id);
-                         }
-                      }}
-                      className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
-                      title="Delete Template"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                    <div className="h-6 w-px bg-dark-700 mx-2"></div>
                     <button 
                       onClick={handleSaveEditor}
                       className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-brand-900/20"
@@ -283,6 +273,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                  </div>
               </div>
 
+              {/* Editor Split View */}
               <div className="flex-1 flex overflow-hidden">
                 <div className="w-1/2 h-full bg-[#1e1e1e] flex flex-col border-r border-dark-800">
                    <div className="bg-dark-900 px-4 py-2 text-xs font-mono text-gray-400 border-b border-dark-800 flex justify-between items-center">
@@ -308,184 +299,182 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ isOpen, onClose, onSe
                         />
                       </div>
                    </div>
-                   <div className="absolute top-2 right-2 bg-dark-900/80 text-xs text-white px-2 py-1 rounded backdrop-blur-sm pointer-events-none border border-dark-700">
-                     Preview
-                   </div>
                 </div>
               </div>
            </div>
         ) : (
-          <>
-            <div className="p-6 border-b border-dark-800 flex items-center justify-between bg-dark-950">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-brand-500/10 rounded-xl border border-brand-500/20">
-                  <Layout className="text-brand-500" size={24} />
+          /* Browser Mode */
+          <div className="flex h-full">
+            
+            {/* Sidebar Navigation */}
+            <div className="w-64 bg-dark-900 border-r border-dark-800 flex flex-col hidden md:flex">
+              <div className="p-6 border-b border-dark-800">
+                <div className="flex items-center gap-2 text-white font-bold text-xl">
+                   <Layout className="text-brand-400" />
+                   <span>Templates</span>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-display font-bold text-white">Template Library</h2>
-                  <p className="text-gray-400 text-sm">Choose a starting point or create your own.</p>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">Select a starting point</p>
               </div>
-
-              <div className="flex items-center gap-3">
-                 {/* Hidden File Input */}
-                 <input 
-                   type="file" 
-                   ref={fileInputRef}
-                   className="hidden" 
-                   accept=".html,.htm"
-                   onChange={handleFileChange}
-                 />
-                 
-                 {/* Action Buttons Group */}
-                 <div className="flex items-center bg-dark-900 p-1 rounded-lg border border-dark-800">
-                    <button 
-                      onClick={handleImportClick}
-                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-dark-800 text-gray-300 rounded-md text-sm font-medium transition-colors"
-                    >
-                      <Upload size={14} />
-                      <span>Import HTML</span>
-                    </button>
-                    <div className="w-px h-4 bg-dark-700 mx-1"></div>
-                    <button 
-                      onClick={handleAddNew}
-                      className="flex items-center gap-2 px-3 py-1.5 hover:bg-dark-800 text-brand-400 rounded-md text-sm font-medium transition-colors"
-                    >
-                      <Plus size={14} />
-                      <span>Create Blank</span>
-                    </button>
-                 </div>
-
-                 <div className="h-8 w-px bg-dark-800 mx-2"></div>
-
-                 <button 
-                   onClick={onClose}
-                   className="p-2 hover:bg-dark-800 rounded-full text-gray-400 hover:text-white transition-colors"
-                 >
-                   <X size={24} />
-                 </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-dark-950/50">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                 {/* Template Cards */}
-                 {templates.map(template => (
-                   <div 
-                     key={template.id}
-                     className="group relative aspect-[4/3] bg-dark-900 rounded-xl border border-dark-800 overflow-hidden hover:border-dark-600 hover:shadow-xl transition-all flex flex-col"
+              
+              <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                 {categories.map(cat => (
+                   <button
+                     key={cat}
+                     onClick={() => setSelectedCategory(cat)}
+                     className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-between group ${
+                       selectedCategory === cat 
+                         ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' 
+                         : 'text-gray-400 hover:bg-dark-800 hover:text-white'
+                     }`}
                    >
-                      {/* Preview Area (mini iframe) */}
-                      <div className="flex-1 bg-white relative overflow-hidden cursor-pointer" onClick={(e) => handleSelect(e, template)}>
-                        <iframe 
-                           srcDoc={getPreviewSrcDoc(template.htmlContent)}
-                           className="w-[200%] h-[200%] transform scale-50 origin-top-left pointer-events-none select-none"
-                           tabIndex={-1}
-                           title={`Preview of ${template.name}`}
-                        />
-                        <div className="absolute inset-0 bg-transparent hover:bg-black/10 transition-colors"></div>
-                        
-                        {/* Category Badge */}
-                        <div className="absolute top-3 left-3 bg-dark-950/90 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white uppercase tracking-wider border border-dark-800">
-                          {template.category}
-                        </div>
-
-                        {/* Hover Actions */}
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm p-2">
-                           <button 
-                             onClick={(e) => handleSelect(e, template)}
-                             className="flex items-center justify-center gap-1 px-4 py-2 bg-brand-600 text-white rounded-lg text-xs font-medium hover:bg-brand-500 transition-colors shadow-lg w-auto"
-                           >
-                             Use
-                           </button>
-                           <button 
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               handleEnterEditMode(template);
-                             }}
-                             className="p-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors shadow-lg"
-                             title="Edit Code"
-                           >
-                             <Code size={16} />
-                           </button>
-                        </div>
-                      </div>
-
-                      {/* Footer Info */}
-                      <div className="p-3 bg-dark-900 border-t border-dark-800 relative z-20">
-                         <div className="flex items-center justify-between mb-1">
-                            {editingNameId === template.id ? (
-                              <div className="flex items-center gap-2 flex-1 mr-2">
-                                <input 
-                                  type="text" 
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="w-full bg-dark-950 border border-brand-500 rounded px-1 py-0.5 text-xs text-white focus:outline-none"
-                                  autoFocus
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveRename(e as any);
-                                  }}
-                                />
-                                <button onClick={saveRename} className="text-brand-400 hover:text-white"><Check size={12} /></button>
-                              </div>
-                            ) : (
-                              <h3 className="font-bold text-white text-xs truncate flex-1 mr-2 cursor-help" title={template.name}>
-                                {template.name}
-                              </h3>
-                            )}
-                            
-                            <div className="flex items-center gap-1">
-                              {deletingId === template.id ? (
-                                <>
-                                  <button 
-                                    onClick={(e) => handleConfirmDelete(e, template.id)}
-                                    className="p-1.5 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded transition-colors"
-                                    title="Confirm Delete"
-                                  >
-                                    <Check size={12} />
-                                  </button>
-                                  <button 
-                                    onClick={handleCancelDelete}
-                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-dark-800 rounded transition-colors"
-                                    title="Cancel"
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button 
-                                    onClick={(e) => startRename(e, template)}
-                                    className="p-1.5 text-gray-500 hover:text-white hover:bg-dark-800 rounded transition-colors"
-                                    title="Rename"
-                                  >
-                                    <Edit2 size={12} />
-                                  </button>
-                                  <button 
-                                    onClick={(e) => handleDeleteClick(e, template.id)}
-                                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                                    title="Delete"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                         </div>
-                         <p className="text-[10px] text-gray-500 truncate">{template.description}</p>
-                      </div>
-                   </div>
+                     <span>{cat}</span>
+                     {selectedCategory === cat && <Check size={14} />}
+                   </button>
                  ))}
               </div>
+
+              <div className="p-4 border-t border-dark-800">
+                  <button 
+                    onClick={handleAddNew}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-dark-800 hover:bg-dark-700 text-white rounded-xl text-sm font-medium transition-colors border border-dark-700"
+                  >
+                    <Plus size={16} />
+                    <span>Create Blank</span>
+                  </button>
+              </div>
             </div>
-            
-            {/* Footer Hint */}
-            <div className="p-3 bg-dark-950 border-t border-dark-800 flex items-center gap-2 text-gray-600 text-[10px] justify-center">
-              <AlertCircle size={10} />
-              <span>Templates are saved locally to your browser.</span>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col bg-dark-950">
+               {/* Toolbar */}
+               <div className="h-16 border-b border-dark-800 flex items-center justify-between px-6 bg-dark-900/50 backdrop-blur">
+                  
+                  {/* Search */}
+                  <div className="relative w-full max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search templates..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-dark-950 border border-dark-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-brand-500 transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                     <input 
+                       type="file" 
+                       ref={fileInputRef}
+                       className="hidden" 
+                       accept=".html,.htm"
+                       onChange={handleFileChange}
+                     />
+                     <button 
+                        onClick={handleImportClick}
+                        className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white hover:bg-dark-800 rounded-lg transition-colors text-sm"
+                     >
+                        <Upload size={16} />
+                        <span className="hidden sm:inline">Import HTML</span>
+                     </button>
+                     <div className="h-6 w-px bg-dark-800 mx-1"></div>
+                     <button onClick={onClose} className="p-2 hover:bg-dark-800 rounded-full text-gray-400 hover:text-white transition-colors">
+                        <X size={20} />
+                     </button>
+                  </div>
+               </div>
+
+               {/* Grid */}
+               <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 pb-20">
+                     {filteredTemplates.map(template => (
+                       <div 
+                         key={template.id}
+                         className="group flex flex-col bg-dark-900 border border-dark-800 rounded-2xl overflow-hidden hover:border-brand-500/50 hover:shadow-xl hover:shadow-brand-900/10 transition-all duration-300 relative"
+                       >
+                          {/* Preview Area - Aspect Ratio changed to 16:9 (Landscape) to reduce height */}
+                          <div 
+                            className="relative aspect-video bg-white cursor-pointer overflow-hidden border-b border-dark-800"
+                            onClick={(e) => handleSelect(e, template)}
+                          >
+                             {/* Optimized iframe scaling for landscape thumbnails - Shows 'Above the Fold' */}
+                             <iframe 
+                               srcDoc={getPreviewSrcDoc(template.htmlContent)}
+                               className="w-[400%] h-[400%] transform scale-[0.25] origin-top-left pointer-events-none select-none border-none bg-white"
+                               tabIndex={-1}
+                               title={`Preview of ${template.name}`}
+                            />
+                            
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 bg-dark-950/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 p-4">
+                               <button 
+                                 onClick={(e) => handleSelect(e, template)}
+                                 className="px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold text-xs shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 w-auto"
+                               >
+                                 Use Template
+                               </button>
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   handleEnterEditMode(template);
+                                 }}
+                                 className="px-6 py-2 bg-white hover:bg-gray-100 text-black rounded-lg font-bold text-xs shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 delay-75 w-auto flex items-center justify-center gap-2"
+                               >
+                                 <Code size={14} /> View Code
+                               </button>
+                            </div>
+                          </div>
+
+                          {/* Footer Info */}
+                          <div className="p-3 border-t border-dark-800 bg-dark-900 z-10 flex-1 flex flex-col">
+                             <div className="flex items-center justify-between mb-1">
+                                <div className="flex-1 min-w-0 mr-2">
+                                   {editingNameId === template.id ? (
+                                      <div className="flex items-center gap-1">
+                                         <input 
+                                           type="text" 
+                                           value={editName}
+                                           onChange={(e) => setEditName(e.target.value)}
+                                           className="w-full bg-dark-950 border border-brand-500 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                                           autoFocus
+                                           onKeyDown={(e) => e.key === 'Enter' && saveRename(e as any)}
+                                           onClick={e => e.stopPropagation()}
+                                         />
+                                         <button onClick={saveRename} className="text-brand-400 hover:text-white p-1"><Check size={14} /></button>
+                                      </div>
+                                   ) : (
+                                      <h3 className="font-bold text-gray-200 text-sm truncate" title={template.name}>{template.name}</h3>
+                                   )}
+                                </div>
+                                
+                                {/* Card Actions */}
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                   {deletingId === template.id ? (
+                                      <>
+                                        <button onClick={(e) => handleConfirmDelete(e, template.id)} className="p-1 bg-red-500/20 text-red-400 rounded"><Check size={12} /></button>
+                                        <button onClick={handleCancelDelete} className="p-1 text-gray-400 hover:bg-dark-800 rounded"><X size={12} /></button>
+                                      </>
+                                   ) : (
+                                      <>
+                                        <button onClick={(e) => startRename(e, template)} className="p-1 text-gray-500 hover:text-white hover:bg-dark-800 rounded"><Edit2 size={12} /></button>
+                                        <button onClick={(e) => handleDeleteClick(e, template.id)} className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded"><Trash2 size={14} /></button>
+                                      </>
+                                   )}
+                                </div>
+                             </div>
+                             <p className="text-xs text-gray-500 line-clamp-1 mb-2">{template.description}</p>
+                             
+                             <div className="mt-auto flex items-center gap-2">
+                                <span className="text-[10px] font-medium text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20 uppercase tracking-wider">
+                                   {template.category}
+                                </span>
+                             </div>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
